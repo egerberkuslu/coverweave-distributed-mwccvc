@@ -1,0 +1,34 @@
+\begin{table}[tb]
+\centering
+\caption{Medium, n = 100. Three seeds per cell, annealing excluded. Common valid subset: 12 of 12 feasible instances. Weights are relative to GHS-MST-Backbone/async, the lightest arm on this subset.}
+\label{tab:cmp-sweep_medium_n100_fixed_v2}
+\begin{tabular}{lrrrrrr}
+\toprule
+Arm & Valid runs & Weight / best & Algorithm msgs & HELLO msgs & Rounds & Time (ms) \\
+\midrule
+GHS-MST-Backbone/async & 12/12 & \textbf{1.000} & 2693 & 3024 & -- & 8171 \\
+GHS-MST-Backbone/sync & 12/12 & 1.014 & 3743 & 5167 & 71 & 14233 \\
+DFS-Spanning-Backbone/async & 12/12 & 1.087 & 1931 & 33227 & -- & 80433 \\
+DFS-Spanning-Backbone/sync & 12/12 & 1.083 & 1929 & 64778 & 785 & 157067 \\
+MIS-Connector-Backbone/async & 12/12 & 1.104 & 995 & 1660 & -- & 4728 \\
+MIS-Connector-Backbone/sync & 12/12 & 1.104 & 1013 & 2348 & 37 & 7333 \\
+MIS-Connector-TreeAgg/async & 12/12 & 1.104 & 3803 & 1661 & -- & 6363 \\
+MIS-Connector-TreeAgg/sync & 12/12 & 1.104 & 5812 & 2348 & 46 & 9133 \\
+WuLi-Dominating-Exact/async & 12/12 & 1.100 & 958 & 1553 & -- & 4481 \\
+WuLi-Dominating-Exact/sync & 12/12 & 1.100 & \textbf{958} & 1975 & 32 & 6333 \\
+WuLi-Dominating-Bloom/async & 12/12 & 1.101 & 958 & 1553 & -- & 4481 \\
+WuLi-Dominating-Bloom/sync & 12/12 & 1.101 & \textbf{958} & 1975 & 32 & 6333 \\
+WuLi-Dominating-Chunked/async & 12/12 & 1.100 & 958 & 1916 & -- & 4481 \\
+WuLi-Dominating-Chunked/sync & 12/12 & 1.100 & \textbf{958} & 2555 & 33 & 6683 \\
+Greedy-Degree-Backbone/async & 12/12 & 1.104 & 2028 & 1673 & -- & 4795 \\
+Greedy-Degree-Backbone/sync & 12/12 & 1.104 & 2334 & 2337 & 36 & 7283 \\
+Greedy-Ratio-Backbone/async & 12/12 & 1.104 & 2028 & 1673 & -- & 4795 \\
+Greedy-Ratio-Backbone/sync & 12/12 & 1.104 & 2334 & 2337 & 36 & 7283 \\
+Greedy-Weight-Backbone/async & 12/12 & 1.104 & 2028 & 1673 & -- & 4795 \\
+Greedy-Weight-Backbone/sync & 12/12 & 1.104 & 2334 & 2337 & 36 & 7283 \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}\footnotesize
+``Rounds'' is defined only under the synchronous scheduler; an asynchronous run has no global round, so those cells are empty and the time column carries the comparison instead. Messages are split because a single total conflates two things: ``algorithm msgs'' is the protocol's own traffic, while HELLO is the periodic neighbour beacon and grows with nodes times rounds, so it charges a SLOW arm rather than a CHATTY one. ``Weight / best'' is relative to the best arm on the same instances and is NOT an approximation ratio; ``weight / optimum'' is, and is defined only where the exact solver ran. ``Valid runs'' counts rows that both terminated and passed the validator, over the feasible instances. Lower is better in every numeric column.
+\end{flushleft}
+\end{table}

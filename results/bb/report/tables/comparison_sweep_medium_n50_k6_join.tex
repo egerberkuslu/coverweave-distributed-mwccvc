@@ -1,0 +1,39 @@
+\begin{table}[tb]
+\centering
+\caption{Medium, n = 50. Six seeds per cell, both schedulers. Common valid subset: 11 of 18 feasible instances. Weights are relative to Anneal-Local/sync, the lightest arm on this subset.}
+\label{tab:cmp-sweep_medium_n50_k6_join}
+\begin{tabular}{lrrrrrr}
+\toprule
+Arm & Valid runs & Weight / best & Algorithm msgs & HELLO msgs & Rounds & Time (ms) \\
+\midrule
+GHS-MST-Backbone/async & 17/18 & 1.133 & 4315 & 6551 & -- & 29690 \\
+GHS-MST-Backbone/sync & 17/18 & 1.136 & 3965 & 7983 & 213 & 42509 \\
+Anneal-Local/async & 13/18 & 1.048 & \textbf{1602} & 7124 & -- & 30588 \\
+Anneal-Local/sync & 12/18 & \textbf{1.000} & 1935 & 8546 & 199 & 39855 \\
+Anneal-TreeAgg/async & 13/18 & 1.048 & \textbf{1602} & 7124 & -- & 30588 \\
+Anneal-TreeAgg/sync & 12/18 & \textbf{1.000} & 1935 & 8546 & 199 & 39855 \\
+Anneal-Trickle/async & 16/18 & 1.053 & 1603 & 4053 & -- & 30603 \\
+DFS-Spanning-Backbone/async & 17/18 & 1.155 & 3322 & 26290 & -- & 108232 \\
+DFS-Spanning-Backbone/sync & 17/18 & 1.150 & 3808 & 50713 & 1058 & 211655 \\
+MIS-Connector-Backbone/async & 17/18 & 1.162 & 2009 & 3598 & -- & 16557 \\
+MIS-Connector-Backbone/sync & 17/18 & 1.164 & 2459 & 5609 & 149 & 29745 \\
+MIS-Connector-TreeAgg/async & 17/18 & 1.162 & 6778 & 3604 & -- & 18605 \\
+MIS-Connector-TreeAgg/sync & 17/18 & 1.164 & 7837 & 5609 & 153 & 30600 \\
+WuLi-Dominating-Exact/async & 17/18 & 1.166 & 1680 & 3026 & -- & 14459 \\
+WuLi-Dominating-Exact/sync & 17/18 & 1.166 & 1948 & 4299 & 114 & 22873 \\
+WuLi-Dominating-Bloom/async & 17/18 & 1.166 & 1680 & 3026 & -- & 14459 \\
+WuLi-Dominating-Bloom/sync & 17/18 & 1.166 & 1948 & 4299 & 114 & 22873 \\
+WuLi-Dominating-Chunked/async & 17/18 & 1.166 & 1680 & 5582 & -- & 14459 \\
+WuLi-Dominating-Chunked/sync & 17/18 & 1.166 & 1948 & 7958 & 114 & 22873 \\
+Greedy-Degree-Backbone/async & 17/18 & 1.162 & 2603 & 3393 & -- & 16055 \\
+Greedy-Degree-Backbone/sync & 17/18 & 1.164 & 3101 & 5101 & 133 & 26545 \\
+Greedy-Ratio-Backbone/async & 17/18 & 1.162 & 2536 & 3314 & -- & 15914 \\
+Greedy-Ratio-Backbone/sync & 17/18 & 1.164 & 3101 & 5101 & 133 & 26545 \\
+Greedy-Weight-Backbone/async & 17/18 & 1.162 & 2536 & 3314 & -- & 15914 \\
+Greedy-Weight-Backbone/sync & 17/18 & 1.164 & 3101 & 5101 & 133 & 26545 \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}\footnotesize
+``Rounds'' is defined only under the synchronous scheduler; an asynchronous run has no global round, so those cells are empty and the time column carries the comparison instead. Messages are split because a single total conflates two things: ``algorithm msgs'' is the protocol's own traffic, while HELLO is the periodic neighbour beacon and grows with nodes times rounds, so it charges a SLOW arm rather than a CHATTY one. ``Weight / best'' is relative to the best arm on the same instances and is NOT an approximation ratio; ``weight / optimum'' is, and is defined only where the exact solver ran. ``Valid runs'' counts rows that both terminated and passed the validator, over the feasible instances. Lower is better in every numeric column.
+\end{flushleft}
+\end{table}

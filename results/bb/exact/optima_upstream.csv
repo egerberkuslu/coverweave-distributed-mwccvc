@@ -1,0 +1,310 @@
+instance,n,m,k,optimum,method,seconds,source,optimum_unscaled,weight_scale,cover_size,status,graph_connected,components
+n10_m20_s1.txt,10,20,3,338.425,branch-and-bound (upstream backend/app/algorithms.py),0.0015,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,338.425,1,7,ok,True,1
+n10_m20_s10.txt,10,20,6,353.811,branch-and-bound (upstream backend/app/algorithms.py),0.0012,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,353.811,1,6,ok,True,1
+n10_m20_s2.txt,10,20,4,297.766,branch-and-bound (upstream backend/app/algorithms.py),0.0066,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,297.766,1,7,ok,True,1
+n10_m20_s3.txt,10,20,3,420.116,branch-and-bound (upstream backend/app/algorithms.py),0.0014,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,420.116,1,7,ok,True,1
+n10_m20_s4.txt,10,20,5,251.819,branch-and-bound (upstream backend/app/algorithms.py),0.0012,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,251.819,1,6,ok,True,1
+n10_m20_s5.txt,10,20,5,311.249,branch-and-bound (upstream backend/app/algorithms.py),0.0013,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,311.249,1,6,ok,True,1
+n10_m20_s6.txt,10,20,4,336.203,branch-and-bound (upstream backend/app/algorithms.py),0.0012,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,336.203,1,6,ok,True,1
+n10_m20_s7.txt,10,20,4,525.956,branch-and-bound (upstream backend/app/algorithms.py),0.0020,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,525.956,1,7,ok,True,1
+n10_m20_s8.txt,10,20,4,430.475,branch-and-bound (upstream backend/app/algorithms.py),0.0016,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,430.475,1,5,ok,True,1
+n10_m20_s9.txt,10,20,5,345.055,branch-and-bound (upstream backend/app/algorithms.py),0.0073,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,345.055,1,6,ok,True,1
+n10_m40_s1.txt,10,40,7,578.118,branch-and-bound (upstream backend/app/algorithms.py),0.0022,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,578.118,1,8,ok,True,1
+n10_m40_s10.txt,10,40,7,450.589,branch-and-bound (upstream backend/app/algorithms.py),0.0081,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,450.589,1,8,ok,True,1
+n10_m40_s2.txt,10,40,7,467.426,branch-and-bound (upstream backend/app/algorithms.py),0.0026,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,467.426,1,8,ok,True,1
+n10_m40_s3.txt,10,40,9,457.15,branch-and-bound (upstream backend/app/algorithms.py),0.0130,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,457.15,1,8,ok,True,1
+n10_m40_s4.txt,10,40,6,564.888,branch-and-bound (upstream backend/app/algorithms.py),0.0021,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,564.888,1,8,ok,True,1
+n10_m40_s5.txt,10,40,5,429.697,branch-and-bound (upstream backend/app/algorithms.py),0.0021,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,429.697,1,8,ok,True,1
+n10_m40_s6.txt,10,40,6,428.846,branch-and-bound (upstream backend/app/algorithms.py),0.0347,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,428.846,1,8,ok,True,1
+n10_m40_s7.txt,10,40,5,547.939,branch-and-bound (upstream backend/app/algorithms.py),0.0024,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,547.939,1,8,ok,True,1
+n10_m40_s8.txt,10,40,9,473.613,branch-and-bound (upstream backend/app/algorithms.py),0.0073,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,473.613,1,8,ok,True,1
+n10_m40_s9.txt,10,40,6,501.929,branch-and-bound (upstream backend/app/algorithms.py),0.0079,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,501.929,1,8,ok,True,1
+n15_m30_s1.txt,15,30,4,615.724,branch-and-bound (upstream backend/app/algorithms.py),0.0503,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,615.724,1,10,ok,True,1
+n15_m30_s10.txt,15,30,4,519.253,branch-and-bound (upstream backend/app/algorithms.py),0.0232,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,519.253,1,9,ok,True,1
+n15_m30_s2.txt,15,30,5,711.947,branch-and-bound (upstream backend/app/algorithms.py),0.0679,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,711.947,1,10,ok,True,1
+n15_m30_s3.txt,15,30,7,567.613,branch-and-bound (upstream backend/app/algorithms.py),0.0619,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,567.613,1,10,ok,True,1
+n15_m30_s4.txt,15,30,5,670.916,branch-and-bound (upstream backend/app/algorithms.py),0.0771,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,670.916,1,10,ok,True,1
+n15_m30_s5.txt,15,30,4,649.499,branch-and-bound (upstream backend/app/algorithms.py),0.0330,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,649.499,1,10,ok,True,1
+n15_m30_s6.txt,15,30,3,699.742,branch-and-bound (upstream backend/app/algorithms.py),0.0178,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,699.742,1,10,ok,True,1
+n15_m30_s7.txt,15,30,5,645.08,branch-and-bound (upstream backend/app/algorithms.py),0.0513,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,645.08,1,9,ok,True,1
+n15_m30_s8.txt,15,30,3,522.084,branch-and-bound (upstream backend/app/algorithms.py),0.0109,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,522.084,1,10,ok,True,1
+n15_m30_s9.txt,15,30,5,625.819,branch-and-bound (upstream backend/app/algorithms.py),0.0658,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,625.819,1,9,ok,True,1
+n15_m60_s1.txt,15,60,8,664.336,branch-and-bound (upstream backend/app/algorithms.py),0.0512,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,664.336,1,11,ok,True,1
+n15_m60_s10.txt,15,60,7,687.132,branch-and-bound (upstream backend/app/algorithms.py),0.0284,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,687.132,1,11,ok,True,1
+n15_m60_s2.txt,15,60,9,910.982,branch-and-bound (upstream backend/app/algorithms.py),0.0719,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,910.982,1,11,ok,True,1
+n15_m60_s3.txt,15,60,9,587.106,branch-and-bound (upstream backend/app/algorithms.py),0.0668,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,587.106,1,11,ok,True,1
+n15_m60_s4.txt,15,60,6,712.34,branch-and-bound (upstream backend/app/algorithms.py),0.0188,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,712.34,1,12,ok,True,1
+n15_m60_s5.txt,15,60,8,607.702,branch-and-bound (upstream backend/app/algorithms.py),0.0530,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,607.702,1,11,ok,True,1
+n15_m60_s6.txt,15,60,9,578.865,branch-and-bound (upstream backend/app/algorithms.py),0.0629,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,578.865,1,11,ok,True,1
+n15_m60_s7.txt,15,60,7,760.413,branch-and-bound (upstream backend/app/algorithms.py),0.0395,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,760.413,1,12,ok,True,1
+n15_m60_s8.txt,15,60,7,753.147,branch-and-bound (upstream backend/app/algorithms.py),0.0393,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,753.147,1,11,ok,True,1
+n15_m60_s9.txt,15,60,8,652.978,branch-and-bound (upstream backend/app/algorithms.py),0.0539,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,652.978,1,10,ok,True,1
+n15_m90_s1.txt,15,90,10,852.798,branch-and-bound (upstream backend/app/algorithms.py),0.0452,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,852.798,1,12,ok,True,1
+n15_m90_s10.txt,15,90,11,718.217,branch-and-bound (upstream backend/app/algorithms.py),0.0604,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,718.217,1,12,ok,True,1
+n15_m90_s2.txt,15,90,12,927.049,branch-and-bound (upstream backend/app/algorithms.py),0.0865,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,927.049,1,13,ok,True,1
+n15_m90_s3.txt,15,90,11,907.559,branch-and-bound (upstream backend/app/algorithms.py),0.0724,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,907.559,1,13,ok,True,1
+n15_m90_s4.txt,15,90,7,809.242,branch-and-bound (upstream backend/app/algorithms.py),0.0161,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,809.242,1,13,ok,True,1
+n15_m90_s5.txt,15,90,8,956.244,branch-and-bound (upstream backend/app/algorithms.py),0.0120,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,956.244,1,13,ok,True,1
+n15_m90_s6.txt,15,90,12,819.194,branch-and-bound (upstream backend/app/algorithms.py),0.0613,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,819.194,1,12,ok,True,1
+n15_m90_s7.txt,15,90,10,831.606,branch-and-bound (upstream backend/app/algorithms.py),0.0524,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,831.606,1,13,ok,True,1
+n15_m90_s8.txt,15,90,10,920.568,branch-and-bound (upstream backend/app/algorithms.py),0.0538,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,920.568,1,12,ok,True,1
+n15_m90_s9.txt,15,90,12,887.144,branch-and-bound (upstream backend/app/algorithms.py),0.0640,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,887.144,1,13,ok,True,1
+n20_m120_s1.txt,20,120,9,878.345,branch-and-bound (upstream backend/app/algorithms.py),0.2081,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,878.345,1,16,ok,True,1
+n20_m120_s10.txt,20,120,13,948.978,branch-and-bound (upstream backend/app/algorithms.py),2.0896,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,948.978,1,16,ok,True,1
+n20_m120_s2.txt,20,120,12,1067.53,branch-and-bound (upstream backend/app/algorithms.py),2.2715,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1067.53,1,17,ok,True,1
+n20_m120_s3.txt,20,120,13,855.753,branch-and-bound (upstream backend/app/algorithms.py),2.1500,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,855.753,1,16,ok,True,1
+n20_m120_s4.txt,20,120,10,1146.6,branch-and-bound (upstream backend/app/algorithms.py),1.0853,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1146.6,1,16,ok,True,1
+n20_m120_s5.txt,20,120,15,949.34,branch-and-bound (upstream backend/app/algorithms.py),3.1879,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,949.34,1,16,ok,True,1
+n20_m120_s6.txt,20,120,13,1048.92,branch-and-bound (upstream backend/app/algorithms.py),2.5957,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1048.92,1,16,ok,True,1
+n20_m120_s7.txt,20,120,11,1067.86,branch-and-bound (upstream backend/app/algorithms.py),1.6221,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1067.86,1,17,ok,True,1
+n20_m120_s8.txt,20,120,12,1169.69,branch-and-bound (upstream backend/app/algorithms.py),2.3304,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1169.69,1,16,ok,True,1
+n20_m120_s9.txt,20,120,10,949.995,branch-and-bound (upstream backend/app/algorithms.py),0.9963,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,949.995,1,17,ok,True,1
+n20_m160_s1.txt,20,160,14,966.271,branch-and-bound (upstream backend/app/algorithms.py),1.2790,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,966.271,1,17,ok,True,1
+n20_m160_s10.txt,20,160,15,1138.34,branch-and-bound (upstream backend/app/algorithms.py),2.0184,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1138.34,1,17,ok,True,1
+n20_m160_s2.txt,20,160,13,1005.97,branch-and-bound (upstream backend/app/algorithms.py),0.7508,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1005.97,1,17,ok,True,1
+n20_m160_s3.txt,20,160,13,1198.12,branch-and-bound (upstream backend/app/algorithms.py),0.7031,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1198.12,1,17,ok,True,1
+n20_m160_s4.txt,20,160,12,1199.81,branch-and-bound (upstream backend/app/algorithms.py),0.5021,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1199.81,1,17,ok,True,1
+n20_m160_s5.txt,20,160,16,1168,branch-and-bound (upstream backend/app/algorithms.py),2.5684,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1168,1,17,ok,True,1
+n20_m160_s6.txt,20,160,16,1128.48,branch-and-bound (upstream backend/app/algorithms.py),2.4842,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1128.48,1,17,ok,True,1
+n20_m160_s7.txt,20,160,13,1109.24,branch-and-bound (upstream backend/app/algorithms.py),0.8110,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1109.24,1,17,ok,True,1
+n20_m160_s8.txt,20,160,16,1381.07,branch-and-bound (upstream backend/app/algorithms.py),2.4717,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1381.07,1,17,ok,True,1
+n20_m160_s9.txt,20,160,11,1170.18,branch-and-bound (upstream backend/app/algorithms.py),0.1739,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1170.18,1,18,ok,True,1
+n20_m40_s1.txt,20,40,5,704.112,branch-and-bound (upstream backend/app/algorithms.py),1.4481,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,704.112,1,11,ok,True,1
+n20_m40_s10.txt,20,40,4,619.338,branch-and-bound (upstream backend/app/algorithms.py),0.8458,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,619.338,1,12,ok,True,1
+n20_m40_s2.txt,20,40,4,693.509,branch-and-bound (upstream backend/app/algorithms.py),0.6646,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,693.509,1,12,ok,True,1
+n20_m40_s3.txt,20,40,5,621.099,branch-and-bound (upstream backend/app/algorithms.py),1.4801,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,621.099,1,13,ok,True,1
+n20_m40_s4.txt,20,40,5,751.479,branch-and-bound (upstream backend/app/algorithms.py),1.2177,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,751.479,1,12,ok,True,1
+n20_m40_s5.txt,20,40,6,683.3,branch-and-bound (upstream backend/app/algorithms.py),1.4780,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,683.3,1,11,ok,True,1
+n20_m40_s6.txt,20,40,4,685.09,branch-and-bound (upstream backend/app/algorithms.py),0.9258,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,685.09,1,12,ok,True,1
+n20_m40_s7.txt,20,40,5,851.696,branch-and-bound (upstream backend/app/algorithms.py),1.7383,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,851.696,1,12,ok,True,1
+n20_m40_s8.txt,20,40,6,900.698,branch-and-bound (upstream backend/app/algorithms.py),1.9551,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,900.698,1,13,ok,True,1
+n20_m40_s9.txt,20,40,6,646.714,branch-and-bound (upstream backend/app/algorithms.py),1.6117,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,646.714,1,12,ok,True,1
+n20_m80_s1.txt,20,80,9,934.477,branch-and-bound (upstream backend/app/algorithms.py),2.2427,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,934.477,1,15,ok,True,1
+n20_m80_s10.txt,20,80,10,819.438,branch-and-bound (upstream backend/app/algorithms.py),2.1337,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,819.438,1,14,ok,True,1
+n20_m80_s2.txt,20,80,10,850.024,branch-and-bound (upstream backend/app/algorithms.py),2.1692,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,850.024,1,14,ok,True,1
+n20_m80_s3.txt,20,80,10,959.567,branch-and-bound (upstream backend/app/algorithms.py),2.5560,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,959.567,1,16,ok,True,1
+n20_m80_s4.txt,20,80,6,1060.9,branch-and-bound (upstream backend/app/algorithms.py),0.1812,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1060.9,1,15,ok,True,1
+n20_m80_s5.txt,20,80,9,994.962,branch-and-bound (upstream backend/app/algorithms.py),2.1892,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,994.962,1,15,ok,True,1
+n20_m80_s6.txt,20,80,7,1018.76,branch-and-bound (upstream backend/app/algorithms.py),0.9502,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1018.76,1,15,ok,True,1
+n20_m80_s7.txt,20,80,10,1165.15,branch-and-bound (upstream backend/app/algorithms.py),2.5424,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1165.15,1,14,ok,True,1
+n20_m80_s8.txt,20,80,8,932.074,branch-and-bound (upstream backend/app/algorithms.py),1.7630,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,932.074,1,15,ok,True,1
+n20_m80_s9.txt,20,80,8,870.605,branch-and-bound (upstream backend/app/algorithms.py),1.6624,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,870.605,1,14,ok,True,1
+n25_m100_s1.txt,25,100,10,1058.11,branch-and-bound (upstream backend/app/algorithms.py),82.3481,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1058.11,1,17,ok,True,1
+n25_m100_s10.txt,25,100,13,1066.5,branch-and-bound (upstream backend/app/algorithms.py),79.2319,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1066.5,1,18,ok,True,1
+n25_m100_s2.txt,25,100,7,1385.36,branch-and-bound (upstream backend/app/algorithms.py),22.7420,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1385.36,1,18,ok,True,1
+n25_m100_s3.txt,25,100,13,1078.61,branch-and-bound (upstream backend/app/algorithms.py),85.3436,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1078.61,1,18,ok,True,1
+n25_m100_s4.txt,25,100,9,1385.64,branch-and-bound (upstream backend/app/algorithms.py),69.3897,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1385.64,1,18,ok,True,1
+n25_m100_s5.txt,25,100,10,1334.85,branch-and-bound (upstream backend/app/algorithms.py),88.4119,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1334.85,1,17,ok,True,1
+n25_m100_s6.txt,25,100,7,1224.48,branch-and-bound (upstream backend/app/algorithms.py),25.0390,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1224.48,1,19,ok,True,1
+n25_m100_s7.txt,25,100,10,1356.54,branch-and-bound (upstream backend/app/algorithms.py),84.0260,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1356.54,1,18,ok,True,1
+n25_m100_s8.txt,25,100,10,1155.1,branch-and-bound (upstream backend/app/algorithms.py),83.5438,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1155.1,1,18,ok,True,1
+n25_m100_s9.txt,25,100,9,1196.61,branch-and-bound (upstream backend/app/algorithms.py),64.5011,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1196.61,1,18,ok,True,1
+n25_m150_s1.txt,25,150,14,1046.14,branch-and-bound (upstream backend/app/algorithms.py),90.5516,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1046.14,1,20,ok,True,1
+n25_m150_s10.txt,25,150,15,1348.57,branch-and-bound (upstream backend/app/algorithms.py),97.9753,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1348.57,1,19,ok,True,1
+n25_m150_s2.txt,25,150,15,1248.53,branch-and-bound (upstream backend/app/algorithms.py),101.3760,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1248.53,1,19,ok,True,1
+n25_m150_s3.txt,25,150,13,1343.24,branch-and-bound (upstream backend/app/algorithms.py),76.7951,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1343.24,1,20,ok,True,1
+n25_m150_s4.txt,25,150,10,1328.49,branch-and-bound (upstream backend/app/algorithms.py),29.1130,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1328.49,1,20,ok,True,1
+n25_m150_s5.txt,25,150,16,1218.44,branch-and-bound (upstream backend/app/algorithms.py),99.0762,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1218.44,1,20,ok,True,1
+n25_m150_s6.txt,25,150,14,1212.63,branch-and-bound (upstream backend/app/algorithms.py),89.3195,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1212.63,1,19,ok,True,1
+n25_m150_s7.txt,25,150,11,1317.67,branch-and-bound (upstream backend/app/algorithms.py),45.7844,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1317.67,1,19,ok,True,1
+n25_m150_s8.txt,25,150,14,1191.27,branch-and-bound (upstream backend/app/algorithms.py),92.0644,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1191.27,1,20,ok,True,1
+n25_m150_s9.txt,25,150,13,1280.55,branch-and-bound (upstream backend/app/algorithms.py),76.3295,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1280.55,1,19,ok,True,1
+n25_m200_s1.txt,25,200,16,1263.1,branch-and-bound (upstream backend/app/algorithms.py),67.2100,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1263.1,1,20,ok,True,1
+n25_m200_s10.txt,25,200,13,1389.5,branch-and-bound (upstream backend/app/algorithms.py),19.8156,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1389.5,1,20,ok,True,1
+n25_m200_s2.txt,25,200,13,1427.9,branch-and-bound (upstream backend/app/algorithms.py),18.9376,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1427.9,1,21,ok,True,1
+n25_m200_s3.txt,25,200,16,1405.64,branch-and-bound (upstream backend/app/algorithms.py),70.3810,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1405.64,1,21,ok,True,1
+n25_m200_s4.txt,25,200,13,1382.41,branch-and-bound (upstream backend/app/algorithms.py),20.2472,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1382.41,1,21,ok,True,1
+n25_m200_s5.txt,25,200,12,1473.39,branch-and-bound (upstream backend/app/algorithms.py),9.9831,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1473.39,1,21,ok,True,1
+n25_m200_s6.txt,25,200,15,1260.37,branch-and-bound (upstream backend/app/algorithms.py),47.8634,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1260.37,1,21,ok,True,1
+n25_m200_s7.txt,25,200,14,1352.74,branch-and-bound (upstream backend/app/algorithms.py),34.2120,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1352.74,1,21,ok,True,1
+n25_m200_s8.txt,25,200,16,1264.12,branch-and-bound (upstream backend/app/algorithms.py),66.9760,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1264.12,1,21,ok,True,1
+n25_m200_s9.txt,25,200,18,1274.03,branch-and-bound (upstream backend/app/algorithms.py),83.3132,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1274.03,1,20,ok,True,1
+n25_m50_s1.txt,25,50,5,957.297,branch-and-bound (upstream backend/app/algorithms.py),64.3290,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,957.297,1,17,ok,True,1
+n25_m50_s10.txt,25,50,6,1213.98,branch-and-bound (upstream backend/app/algorithms.py),74.0632,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1213.98,1,15,ok,True,1
+n25_m50_s2.txt,25,50,5,967.491,branch-and-bound (upstream backend/app/algorithms.py),57.2320,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,967.491,1,16,ok,True,1
+n25_m50_s3.txt,25,50,6,1158.26,branch-and-bound (upstream backend/app/algorithms.py),49.8809,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1158.26,1,15,ok,True,1
+n25_m50_s4.txt,25,50,5,925.438,branch-and-bound (upstream backend/app/algorithms.py),33.1120,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,925.438,1,17,ok,True,1
+n25_m50_s5.txt,25,50,5,1023.4,branch-and-bound (upstream backend/app/algorithms.py),26.8462,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,1023.4,1,14,ok,True,1
+n25_m50_s6.txt,25,50,6,937.292,branch-and-bound (upstream backend/app/algorithms.py),34.0805,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,937.292,1,17,ok,True,1
+n25_m50_s7.txt,25,50,7,993.892,branch-and-bound (upstream backend/app/algorithms.py),26.1857,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,993.892,1,15,ok,True,1
+n25_m50_s8.txt,25,50,6,978.6,branch-and-bound (upstream backend/app/algorithms.py),26.7779,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,978.6,1,15,ok,True,1
+n25_m50_s9.txt,25,50,6,832.401,branch-and-bound (upstream backend/app/algorithms.py),28.8789,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/small.json,832.401,1,15,ok,True,1
+n100_m200_s1.txt,100,200,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",88.4965,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,65,timed_out,True,1
+n100_m200_s10.txt,100,200,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",90.9814,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,68,timed_out,True,1
+n100_m200_s2.txt,100,200,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",71.0655,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,68,timed_out,True,1
+n100_m200_s3.txt,100,200,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",36.2749,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,70,timed_out,True,1
+n100_m200_s4.txt,100,200,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",79.8044,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,70,timed_out,True,1
+n100_m200_s5.txt,100,200,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",39.4204,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,74,timed_out,True,1
+n100_m200_s6.txt,100,200,4,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",68.4801,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,69,timed_out,True,1
+n100_m200_s7.txt,100,200,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",65.4342,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,72,timed_out,True,1
+n100_m200_s8.txt,100,200,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",60.8360,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,71,timed_out,True,1
+n100_m200_s9.txt,100,200,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",87.3609,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,70,timed_out,True,1
+n100_m400_s1.txt,100,400,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",186.1742,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,75,timed_out,True,1
+n100_m400_s10.txt,100,400,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",136.1024,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,77,timed_out,True,1
+n100_m400_s2.txt,100,400,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",171.5671,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,77,timed_out,True,1
+n100_m400_s3.txt,100,400,13,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",143.0088,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,74,timed_out,True,1
+n100_m400_s4.txt,100,400,10,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",231.5983,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,79,timed_out,True,1
+n100_m400_s5.txt,100,400,11,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",175.0416,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,76,timed_out,True,1
+n100_m400_s6.txt,100,400,14,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",120.9487,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,74,timed_out,True,1
+n100_m400_s7.txt,100,400,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",106.5008,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,77,timed_out,True,1
+n100_m400_s8.txt,100,400,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",145.7726,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,75,timed_out,True,1
+n100_m400_s9.txt,100,400,11,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",135.8784,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,77,timed_out,True,1
+n100_m600_s1.txt,100,600,17,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",273.3844,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,80,timed_out,True,1
+n100_m600_s10.txt,100,600,16,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",262.0613,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,81,timed_out,True,1
+n100_m600_s2.txt,100,600,16,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",301.7903,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,81,timed_out,True,1
+n100_m600_s3.txt,100,600,17,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",267.8832,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,78,timed_out,True,1
+n100_m600_s4.txt,100,600,19,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",314.7030,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,79,timed_out,True,1
+n100_m600_s5.txt,100,600,16,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",397.4144,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,79,timed_out,True,1
+n100_m600_s6.txt,100,600,16,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",316.6708,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,80,timed_out,True,1
+n100_m600_s7.txt,100,600,15,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",325.0562,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,82,timed_out,True,1
+n100_m600_s8.txt,100,600,18,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",337.2470,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,78,timed_out,True,1
+n100_m600_s9.txt,100,600,16,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",367.8638,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,83,timed_out,True,1
+n100_m800_s1.txt,100,800,18,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",382.8057,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,86,timed_out,True,1
+n100_m800_s10.txt,100,800,25,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",555.0147,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,81,timed_out,True,1
+n100_m800_s2.txt,100,800,18,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",520.3079,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,85,timed_out,True,1
+n100_m800_s3.txt,100,800,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",437.3933,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,84,timed_out,True,1
+n100_m800_s4.txt,100,800,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",296.6494,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,82,timed_out,True,1
+n100_m800_s5.txt,100,800,19,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",386.3791,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,83,timed_out,True,1
+n100_m800_s6.txt,100,800,20,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",428.8973,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,87,timed_out,True,1
+n100_m800_s7.txt,100,800,20,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",294.4316,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,85,timed_out,True,1
+n100_m800_s8.txt,100,800,23,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",403.8392,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,83,timed_out,True,1
+n100_m800_s9.txt,100,800,22,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",114.8502,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,82,timed_out,True,1
+n150_m1200_s1.txt,150,1200,20,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",895.2510,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,129,timed_out,True,1
+n150_m1200_s10.txt,150,1200,25,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",696.7304,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,130,timed_out,True,1
+n150_m1200_s2.txt,150,1200,20,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",684.2364,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,124,timed_out,True,1
+n150_m1200_s3.txt,150,1200,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",966.8350,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,127,timed_out,True,1
+n150_m1200_s4.txt,150,1200,22,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",503.0187,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,128,timed_out,True,1
+n150_m1200_s5.txt,150,1200,23,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",625.2723,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,120,timed_out,True,1
+n150_m1200_s6.txt,150,1200,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",1172.4316,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,125,timed_out,True,1
+n150_m1200_s7.txt,150,1200,20,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",995.9408,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,128,timed_out,True,1
+n150_m1200_s8.txt,150,1200,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",922.8437,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,125,timed_out,True,1
+n150_m1200_s9.txt,150,1200,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",828.7935,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,125,timed_out,True,1
+n150_m300_s1.txt,150,300,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",195.8450,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,113,timed_out,True,1
+n150_m300_s10.txt,150,300,9,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",127.4433,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,104,timed_out,True,1
+n150_m300_s2.txt,150,300,8,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",94.5156,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,102,timed_out,True,1
+n150_m300_s3.txt,150,300,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",218.1991,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,103,timed_out,True,1
+n150_m300_s4.txt,150,300,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",144.8309,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,107,timed_out,True,1
+n150_m300_s5.txt,150,300,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",107.4190,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,107,timed_out,True,1
+n150_m300_s6.txt,150,300,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",207.0715,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,108,timed_out,True,1
+n150_m300_s7.txt,150,300,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",122.5358,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,106,timed_out,True,1
+n150_m300_s8.txt,150,300,8,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",123.1575,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,109,timed_out,True,1
+n150_m300_s9.txt,150,300,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",202.2896,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,104,timed_out,True,1
+n150_m600_s1.txt,150,600,11,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",269.5167,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,116,timed_out,True,1
+n150_m600_s10.txt,150,600,13,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",466.8137,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,109,timed_out,True,1
+n150_m600_s2.txt,150,600,14,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",265.8314,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,111,timed_out,True,1
+n150_m600_s3.txt,150,600,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",523.1285,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,113,timed_out,True,1
+n150_m600_s4.txt,150,600,11,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",425.9499,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,115,timed_out,True,1
+n150_m600_s5.txt,150,600,13,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",244.7817,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,116,timed_out,True,1
+n150_m600_s6.txt,150,600,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",487.2371,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,113,timed_out,True,1
+n150_m600_s7.txt,150,600,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",391.7754,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,114,timed_out,True,1
+n150_m600_s8.txt,150,600,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",308.4469,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,113,timed_out,True,1
+n150_m600_s9.txt,150,600,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",251.1736,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,114,timed_out,True,1
+n150_m900_s1.txt,150,900,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",745.3948,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,112,timed_out,True,1
+n150_m900_s10.txt,150,900,14,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",708.4975,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,124,timed_out,True,1
+n150_m900_s2.txt,150,900,17,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",428.4128,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,121,timed_out,True,1
+n150_m900_s3.txt,150,900,18,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",385.0084,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,119,timed_out,True,1
+n150_m900_s4.txt,150,900,19,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",379.1380,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,116,timed_out,True,1
+n150_m900_s5.txt,150,900,18,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",589.7061,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,122,timed_out,True,1
+n150_m900_s6.txt,150,900,19,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",609.4525,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,122,timed_out,True,1
+n150_m900_s7.txt,150,900,19,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",631.9653,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,119,timed_out,True,1
+n150_m900_s8.txt,150,900,16,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",702.5558,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,125,timed_out,True,1
+n150_m900_s9.txt,150,900,19,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",1010.5326,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,121,timed_out,True,1
+n200_m1200_s1.txt,200,1200,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",363.6839,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,162,timed_out,True,1
+n200_m1200_s10.txt,200,1200,19,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",220.8540,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,160,timed_out,True,1
+n200_m1200_s2.txt,200,1200,22,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",586.4000,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,161,timed_out,True,1
+n200_m1200_s3.txt,200,1200,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",206.5743,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,160,timed_out,True,1
+n200_m1200_s4.txt,200,1200,24,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",337.0282,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,153,timed_out,True,1
+n200_m1200_s5.txt,200,1200,16,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",341.8162,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,163,timed_out,True,1
+n200_m1200_s6.txt,200,1200,18,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",303.6171,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,163,timed_out,True,1
+n200_m1200_s7.txt,200,1200,16,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",437.5419,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,157,timed_out,True,1
+n200_m1200_s8.txt,200,1200,16,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",324.4216,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,161,timed_out,True,1
+n200_m1200_s9.txt,200,1200,17,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",312.9574,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,166,timed_out,True,1
+n200_m1600_s1.txt,200,1600,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",438.8416,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,167,timed_out,True,1
+n200_m1600_s10.txt,200,1600,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",407.5045,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,170,timed_out,True,1
+n200_m1600_s2.txt,200,1600,23,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",450.5160,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,166,timed_out,True,1
+n200_m1600_s3.txt,200,1600,27,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",290.6177,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,170,timed_out,True,1
+n200_m1600_s4.txt,200,1600,26,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",617.2208,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,159,timed_out,True,1
+n200_m1600_s5.txt,200,1600,30,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",490.4571,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,168,timed_out,True,1
+n200_m1600_s6.txt,200,1600,23,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",610.8019,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,172,timed_out,True,1
+n200_m1600_s7.txt,200,1600,23,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",612.7195,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,170,timed_out,True,1
+n200_m1600_s8.txt,200,1600,22,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",488.8698,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,166,timed_out,True,1
+n200_m1600_s9.txt,200,1600,24,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",403.7749,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,166,timed_out,True,1
+n200_m400_s1.txt,200,400,8,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",48.2396,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,136,timed_out,True,1
+n200_m400_s10.txt,200,400,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",89.2971,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,139,timed_out,True,1
+n200_m400_s2.txt,200,400,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",82.2345,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,148,timed_out,True,1
+n200_m400_s3.txt,200,400,9,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",48.6610,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,143,timed_out,True,1
+n200_m400_s4.txt,200,400,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",72.4994,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,147,timed_out,True,1
+n200_m400_s5.txt,200,400,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",61.9030,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,149,timed_out,True,1
+n200_m400_s6.txt,200,400,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",70.6498,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,145,timed_out,True,1
+n200_m400_s7.txt,200,400,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",81.2385,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,152,timed_out,True,1
+n200_m400_s8.txt,200,400,8,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",48.8804,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,133,timed_out,True,1
+n200_m400_s9.txt,200,400,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",64.8734,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,129,timed_out,True,1
+n200_m800_s1.txt,200,800,14,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",117.8103,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,155,timed_out,True,1
+n200_m800_s10.txt,200,800,13,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",168.3242,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,145,timed_out,True,1
+n200_m800_s2.txt,200,800,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",168.9922,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,150,timed_out,True,1
+n200_m800_s3.txt,200,800,11,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",187.3793,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,153,timed_out,True,1
+n200_m800_s4.txt,200,800,10,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",126.0520,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,154,timed_out,True,1
+n200_m800_s5.txt,200,800,11,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",243.7241,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,154,timed_out,True,1
+n200_m800_s6.txt,200,800,11,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",212.5488,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,152,timed_out,True,1
+n200_m800_s7.txt,200,800,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",241.9607,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,148,timed_out,True,1
+n200_m800_s8.txt,200,800,14,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",264.9100,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,152,timed_out,True,1
+n200_m800_s9.txt,200,800,14,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",114.5093,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,154,timed_out,True,1
+n50_m100_s1.txt,50,100,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",15.7779,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,33,timed_out,True,1
+n50_m100_s10.txt,50,100,5,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",27.3625,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,36,timed_out,True,1
+n50_m100_s2.txt,50,100,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",24.8183,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,35,timed_out,True,1
+n50_m100_s3.txt,50,100,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",32.6542,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,34,timed_out,True,1
+n50_m100_s4.txt,50,100,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",19.8197,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,32,timed_out,True,1
+n50_m100_s5.txt,50,100,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",12.9915,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,32,timed_out,True,1
+n50_m100_s6.txt,50,100,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",31.9241,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,33,timed_out,True,1
+n50_m100_s7.txt,50,100,6,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",21.4205,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,35,timed_out,True,1
+n50_m100_s8.txt,50,100,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",17.5021,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,33,timed_out,True,1
+n50_m100_s9.txt,50,100,8,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",14.5316,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,36,timed_out,True,1
+n50_m200_s1.txt,50,200,11,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",88.6358,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,40,timed_out,True,1
+n50_m200_s10.txt,50,200,11,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",31.2209,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,38,timed_out,True,1
+n50_m200_s2.txt,50,200,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",39.0949,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,37,timed_out,True,1
+n50_m200_s3.txt,50,200,9,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",24.9246,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,38,timed_out,True,1
+n50_m200_s4.txt,50,200,10,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",39.0355,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,37,timed_out,True,1
+n50_m200_s5.txt,50,200,9,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",61.5924,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,38,timed_out,True,1
+n50_m200_s6.txt,50,200,12,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",25.2828,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,37,timed_out,True,1
+n50_m200_s7.txt,50,200,11,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",49.6140,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,38,timed_out,True,1
+n50_m200_s8.txt,50,200,14,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",32.2638,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,36,timed_out,True,1
+n50_m200_s9.txt,50,200,11,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",65.4313,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,39,timed_out,True,1
+n50_m300_s1.txt,50,300,11,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",100.6175,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,41,timed_out,True,1
+n50_m300_s10.txt,50,300,14,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",39.6830,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,42,timed_out,True,1
+n50_m300_s2.txt,50,300,14,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",30.3300,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,41,timed_out,True,1
+n50_m300_s3.txt,50,300,17,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",62.1940,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,40,timed_out,True,1
+n50_m300_s4.txt,50,300,16,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",49.8406,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,41,timed_out,True,1
+n50_m300_s5.txt,50,300,18,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",87.2143,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,41,timed_out,True,1
+n50_m300_s6.txt,50,300,14,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",44.0600,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,41,timed_out,True,1
+n50_m300_s7.txt,50,300,19,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",40.9370,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,38,timed_out,True,1
+n50_m300_s8.txt,50,300,13,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",47.7531,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,41,timed_out,True,1
+n50_m300_s9.txt,50,300,14,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",66.1724,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,41,timed_out,True,1
+n50_m400_s1.txt,50,400,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",65.0271,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,42,timed_out,True,1
+n50_m400_s10.txt,50,400,23,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",49.0662,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,43,timed_out,True,1
+n50_m400_s2.txt,50,400,19,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",94.1711,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,44,timed_out,True,1
+n50_m400_s3.txt,50,400,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",60.7935,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,42,timed_out,True,1
+n50_m400_s4.txt,50,400,17,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",72.8978,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,43,timed_out,True,1
+n50_m400_s5.txt,50,400,16,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",69.0209,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,41,timed_out,True,1
+n50_m400_s6.txt,50,400,20,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",39.9878,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,42,timed_out,True,1
+n50_m400_s7.txt,50,400,17,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",126.9969,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,42,timed_out,True,1
+n50_m400_s8.txt,50,400,18,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",114.7190,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,42,timed_out,True,1
+n50_m400_s9.txt,50,400,16,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",63.1172,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/medium.json,,1,43,timed_out,True,1
+n250_m500_s1.txt,250,500,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",75.6028,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,176,timed_out,True,1
+n250_m1000_s1.txt,250,1000,14,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",194.7256,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,185,timed_out,True,1
+n250_m1500_s1.txt,250,1500,18,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",571.2248,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,192,timed_out,True,1
+n250_m2000_s1.txt,250,2000,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",564.9683,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,209,timed_out,True,1
+n250_m2500_s1.txt,250,2500,30,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",1097.9569,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,207,timed_out,True,1
+n500_m1000_s1.txt,500,1000,8,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",233.2623,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,358,timed_out,True,1
+n500_m2000_s1.txt,500,2000,13,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",1445.8586,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,381,timed_out,True,1
+n500_m3000_s1.txt,500,3000,18,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",3259.6059,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,403,timed_out,True,1
+n500_m4000_s1.txt,500,4000,25,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",4380.6442,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,424,timed_out,True,1
+n500_m5000_s1.txt,500,5000,36,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",6863.2409,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,416,timed_out,True,1
+n750_m1500_s1.txt,750,1500,7,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",562.7145,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,532,timed_out,True,1
+n750_m3000_s1.txt,750,3000,15,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",1978.9125,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,569,timed_out,True,1
+n750_m4500_s1.txt,750,4500,18,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",6111.3573,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,603,timed_out,True,1
+n750_m6000_s1.txt,750,6000,25,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",6414.3328,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,631,timed_out,True,1
+n750_m7500_s1.txt,750,7500,34,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",10258.6913,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,648,timed_out,True,1
+n1000_m2000_s1.txt,1000,2000,8,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",1321.3276,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,716,timed_out,True,1
+n1000_m4000_s1.txt,1000,4000,14,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",4129.8231,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,715,timed_out,True,1
+n1000_m6000_s1.txt,1000,6000,21,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",11590.2898,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,757,timed_out,True,1
+n1000_m8000_s1.txt,1000,8000,30,,"branch-and-bound (upstream backend/app/algorithms.py), stopped on time budget",14227.3775,/home/ege/Desktop/MWCCVC-GNN-yayin/data/raw/aggregate.json,,1,794,timed_out,True,1

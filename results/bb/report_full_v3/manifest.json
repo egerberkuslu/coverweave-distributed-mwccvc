@@ -1,0 +1,116 @@
+{
+  "tables": [
+    "results/bb/report_full_v3/tables/comparison_small.tex",
+    "results/bb/report_full_v3/tables/comparison_medium.tex",
+    "results/bb/report_full_v3/tables/comparison_mediumdense.tex",
+    "results/bb/report_full_v3/tables/comparison_large.tex",
+    "results/bb/report_full_v3/tables/comparison_xlarge.tex",
+    "results/bb/report_full_v3/tables/comparison_largedense.tex",
+    "results/bb/report_full_v3/tables/comparison_densecomplete.tex",
+    "results/bb/report_full_v3/tables/reliability.tex",
+    "results/bb/report_full_v3/tables/wireless.tex",
+    "results/bb/report_full_v3/tables/bridgefix.tex"
+  ],
+  "figures": [
+    "results/bb/report_full_v3/figures_small/quality_vs_cost.png",
+    "results/bb/report_full_v3/figures_small/quality_vs_cost.svg",
+    "results/bb/report_full_v3/figures_small/quality_vs_cost.pdf",
+    "results/bb/report_full_v3/figures_small/ratio_spread.png",
+    "results/bb/report_full_v3/figures_small/ratio_spread.svg",
+    "results/bb/report_full_v3/figures_small/ratio_spread.pdf",
+    "results/bb/report_full_v3/figures_small/scheduler_effect.png",
+    "results/bb/report_full_v3/figures_small/scheduler_effect.svg",
+    "results/bb/report_full_v3/figures_small/scheduler_effect.pdf",
+    "results/bb/report_full_v3/figures_scale/quality_vs_reliability.png",
+    "results/bb/report_full_v3/figures_scale/quality_vs_reliability.svg",
+    "results/bb/report_full_v3/figures_scale/quality_vs_reliability.pdf",
+    "results/bb/report_full_v3/figures_wifi/wifi_n10_m20.png",
+    "results/bb/report_full_v3/figures_wifi/wifi_n10_m20.svg",
+    "results/bb/report_full_v3/figures_wifi/wifi_n10_m20.pdf",
+    "results/bb/report_full_v3/figures_wifi/wifi_n15_m90.png",
+    "results/bb/report_full_v3/figures_wifi/wifi_n15_m90.svg",
+    "results/bb/report_full_v3/figures_wifi/wifi_n15_m90.pdf",
+    "results/bb/report_full_v3/figures_wifi/wifi_n20_m160.png",
+    "results/bb/report_full_v3/figures_wifi/wifi_n20_m160.svg",
+    "results/bb/report_full_v3/figures_wifi/wifi_n20_m160.pdf"
+  ],
+  "scales": [
+    {
+      "label": "small",
+      "dir": "results/bb/full_v3/small",
+      "code_fingerprint": "798b4393cb4f+be8a9f9c1e43+bebb0f917410",
+      "arms": 25,
+      "instances_total": 140,
+      "instances_infeasible": 30,
+      "infeasible_witness": "$m > nk$",
+      "instances_feasible": 110,
+      "instances_common": 110
+    },
+    {
+      "label": "medium",
+      "dir": "results/bb/full_v3/medium",
+      "code_fingerprint": "798b4393cb4f+be8a9f9c1e43+bebb0f917410",
+      "arms": 25,
+      "instances_total": 90,
+      "instances_infeasible": 40,
+      "infeasible_witness": "$m > nk$ or $\\sum_v \\min(\\deg v, k) < m$",
+      "instances_feasible": 50,
+      "instances_common": 50
+    },
+    {
+      "label": "mediumdense",
+      "dir": "results/bb/full_v3/mediumdense",
+      "code_fingerprint": "be8a9f9c1e43+bebb0f917410",
+      "arms": 0,
+      "instances_total": 10,
+      "instances_infeasible": 10,
+      "infeasible_witness": "$m > nk$",
+      "instances_feasible": 0,
+      "instances_common": 0
+    },
+    {
+      "label": "large",
+      "dir": "results/bb/full_v3/large",
+      "code_fingerprint": "798b4393cb4f+be8a9f9c1e43+bebb0f917410",
+      "arms": 25,
+      "instances_total": 60,
+      "instances_infeasible": 15,
+      "infeasible_witness": "$\\sum_v \\min(\\deg v, k) < m$",
+      "instances_feasible": 45,
+      "instances_common": 42
+    },
+    {
+      "label": "xlarge",
+      "dir": "results/bb/full_v3/xlarge",
+      "code_fingerprint": "798b4393cb4f+956bf8aa4130+be8a9f9c1e43+bebb0f917410",
+      "arms": 25,
+      "instances_total": 12,
+      "instances_infeasible": 4,
+      "infeasible_witness": "$\\sum_v \\min(\\deg v, k) < m$",
+      "instances_feasible": 8,
+      "instances_common": 8
+    },
+    {
+      "label": "largedense",
+      "dir": "results/bb/full_v3/largedense",
+      "code_fingerprint": "798b4393cb4f+956bf8aa4130+bebb0f917410",
+      "arms": 0,
+      "instances_total": 12,
+      "instances_infeasible": 12,
+      "infeasible_witness": "$m > nk$",
+      "instances_feasible": 0,
+      "instances_common": 0
+    },
+    {
+      "label": "densecomplete",
+      "dir": "results/bb/full_v3/densecomplete",
+      "code_fingerprint": "956bf8aa4130",
+      "arms": 0,
+      "instances_total": 36,
+      "instances_infeasible": 36,
+      "infeasible_witness": "$m > nk$",
+      "instances_feasible": 0,
+      "instances_common": 0
+    }
+  ]
+}

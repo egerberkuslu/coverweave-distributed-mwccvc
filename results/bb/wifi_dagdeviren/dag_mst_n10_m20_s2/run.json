@@ -1,0 +1,326 @@
+{
+  "channel": {
+    "hello_bytes": 24,
+    "n2_max": 9,
+    "rho_max": 0.1,
+    "rule": "T_hello >= N2 * t_f / rho_max  (brief 3.6)",
+    "t_frame_ms": 0.692,
+    "t_hello_ms": 63,
+    "tau_ms": 76
+  },
+  "code_fingerprint": "19cd1aa99062de2f6570b4014cecdf1a37cf54d8a1e6da75f6f060a6b9c3ecaf",
+  "dataset_case": null,
+  "drops": {},
+  "edges": [
+    [
+      1,
+      2
+    ],
+    [
+      1,
+      5
+    ],
+    [
+      1,
+      9
+    ],
+    [
+      1,
+      10
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      2,
+      4
+    ],
+    [
+      2,
+      5
+    ],
+    [
+      2,
+      10
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      3,
+      9
+    ],
+    [
+      4,
+      5
+    ],
+    [
+      4,
+      8
+    ],
+    [
+      5,
+      6
+    ],
+    [
+      5,
+      7
+    ],
+    [
+      6,
+      7
+    ],
+    [
+      6,
+      8
+    ],
+    [
+      7,
+      8
+    ],
+    [
+      7,
+      10
+    ],
+    [
+      8,
+      9
+    ],
+    [
+      9,
+      10
+    ]
+  ],
+  "epoch_wall_ms": 1789623597236,
+  "execution_backend": "mininet-wifi",
+  "faults": [],
+  "geometric": {
+    "exact": false,
+    "extra": [
+      [
+        2,
+        8
+      ],
+      [
+        2,
+        9
+      ],
+      [
+        5,
+        8
+      ],
+      [
+        5,
+        10
+      ]
+    ],
+    "jaccard": 0.708333,
+    "missing": [
+      [
+        2,
+        5
+      ],
+      [
+        7,
+        10
+      ],
+      [
+        8,
+        9
+      ]
+    ],
+    "n_extra": 4,
+    "n_missing": 3,
+    "n_observed": 21,
+    "n_target": 20
+  },
+  "host_network_namespace_inode": 4026531833,
+  "k": 6,
+  "loss_pct": 0.0,
+  "m": 20,
+  "max_degree": 5,
+  "max_ms": 240000,
+  "mis_nbrs_max": 5,
+  "mode": "sync",
+  "n": 10,
+  "node_kind": "mst",
+  "node_params": {
+    "ack_max_attempts": 3,
+    "ack_periods": 3,
+    "enable_tree": false,
+    "escalate_patience": 2,
+    "gap_patience": 2,
+    "gate_waits_for_pending_links": true,
+    "hello_jitter_ms": 0,
+    "link_backoff_ms": 189,
+    "link_max_attempts": 3,
+    "link_retry_after_periods": 12,
+    "max_repair_rounds": 4,
+    "mis_nbrs_max": 5,
+    "nbr_table_max": 64,
+    "push_ttl": 3,
+    "push_ttl_max": 3,
+    "quiet_periods": 3,
+    "rssi_close_dbm": -85.0,
+    "rssi_ema_alpha": 0.5,
+    "rssi_impossible_dbm": 0.0,
+    "rssi_open_dbm": -75.0,
+    "settle_steps": 1,
+    "stab_periods": 3,
+    "stale_periods": 3,
+    "t_hello_ms": 63,
+    "tree_deadline_periods": 40
+  },
+  "orchestrator_stop_ms": 2468,
+  "params_sha256": "f538a2cd23786f40fceda89ab955c97b282021ecc66b2930d0ab164f569edb62",
+  "peers": {
+    "peers": [
+      {
+        "ip": "10.0.0.1",
+        "mac": "02:00:00:00:05:cf",
+        "nid": 1,
+        "station": "sta1",
+        "udp_port": 47001
+      },
+      {
+        "ip": "10.0.0.2",
+        "mac": "02:00:00:00:0a:95",
+        "nid": 2,
+        "station": "sta2",
+        "udp_port": 47001
+      },
+      {
+        "ip": "10.0.0.3",
+        "mac": "02:00:00:01:88:93",
+        "nid": 3,
+        "station": "sta3",
+        "udp_port": 47001
+      },
+      {
+        "ip": "10.0.0.4",
+        "mac": "02:00:00:01:25:a9",
+        "nid": 4,
+        "station": "sta4",
+        "udp_port": 47001
+      },
+      {
+        "ip": "10.0.0.5",
+        "mac": "02:00:00:01:2c:56",
+        "nid": 5,
+        "station": "sta5",
+        "udp_port": 47001
+      },
+      {
+        "ip": "10.0.0.6",
+        "mac": "02:00:00:00:b2:3e",
+        "nid": 6,
+        "station": "sta6",
+        "udp_port": 47001
+      },
+      {
+        "ip": "10.0.0.7",
+        "mac": "02:00:00:01:02:d0",
+        "nid": 7,
+        "station": "sta7",
+        "udp_port": 47001
+      },
+      {
+        "ip": "10.0.0.8",
+        "mac": "02:00:00:02:0d:db",
+        "nid": 8,
+        "station": "sta8",
+        "udp_port": 47001
+      },
+      {
+        "ip": "10.0.0.9",
+        "mac": "02:00:00:00:5d:ec",
+        "nid": 9,
+        "station": "sta9",
+        "udp_port": 47001
+      },
+      {
+        "ip": "10.0.0.10",
+        "mac": "02:00:00:02:0e:61",
+        "nid": 10,
+        "station": "sta10",
+        "udp_port": 47001
+      }
+    ],
+    "udp_port": 47001
+  },
+  "positions": {
+    "1": [
+      10.1,
+      17.75
+    ],
+    "10": [
+      10.0,
+      17.16
+    ],
+    "2": [
+      18.52,
+      44.71
+    ],
+    "3": [
+      11.83,
+      51.22
+    ],
+    "4": [
+      37.55,
+      43.1
+    ],
+    "5": [
+      39.14,
+      14.34
+    ],
+    "6": [
+      64.8,
+      20.74
+    ],
+    "7": [
+      41.6,
+      10.0
+    ],
+    "8": [
+      45.08,
+      38.84
+    ],
+    "9": [
+      10.1,
+      21.88
+    ]
+  },
+  "prop_exp": 3.0,
+  "radio_range_m": 30.0,
+  "rate_mbps": 1.0,
+  "run_dir": "/tmp/run/gh_mst_n10_m20_s2",
+  "run_id": "gh_mst_n10_m20_s2",
+  "seed": 0,
+  "station_process_pids": {
+    "1": 1092534,
+    "10": 1092543,
+    "2": 1092535,
+    "3": 1092536,
+    "4": 1092537,
+    "5": 1092538,
+    "6": 1092539,
+    "7": 1092540,
+    "8": 1092541,
+    "9": 1092542
+  },
+  "t0_ms": 0,
+  "weights": {
+    "1": 534.0,
+    "10": 925.0,
+    "2": 493.0,
+    "3": 813.0,
+    "4": 228.0,
+    "5": 746.0,
+    "6": 266.0,
+    "7": 208.0,
+    "8": 337.0,
+    "9": 911.0
+  }
+}

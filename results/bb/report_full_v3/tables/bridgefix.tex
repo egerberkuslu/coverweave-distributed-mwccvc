@@ -1,0 +1,20 @@
+\begin{table}[tb]
+\centering
+\caption{The unpaid bridge discount, before and after the fix. Measured on $n=50$, $m=100$ and $n=25$, $m=50$ with three seeds and both schedulers. A node that never freezes exhausts the period budget, which is why the run ends truncated rather than solved.}
+\label{tab:bridgefix}
+\begin{tabular}{lrr}
+\toprule
+Symptom & Before & After \\
+\midrule
+Flips, worst node & 5--274 & 5--15 \\
+Runs where every node froze & 8 / 12 & 12 / 12 \\
+Periods used & 2,300--7,448 & 2,300--4,600 \\
+Distinct component labels & 1--18 & 1 \\
+Components of $G[C]$ & 1--2 & 1 \\
+Solved and valid & 6 / 12 & 12 / 12 \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}\footnotesize
+Source: \texttt{ccvc/bb/bridgefix\_measure.py}; regenerate with \texttt{python3 -m ccvc.bb.bridgefix\_measure}. A single number is the value every run produced, a range is the spread over the 12 runs of that column.
+\end{flushleft}
+\end{table}

@@ -1,0 +1,899 @@
+{
+ "manifest": {
+  "dataset_dir": "/home/ege/Desktop/MDS_SKYFABRIC/data/DagdevirenDataset",
+  "source": "dataset",
+  "groups": "medium",
+  "ns": "150,200",
+  "ratios": "8,10",
+  "max_seeds": 3,
+  "k": 6,
+  "loss": 0.0,
+  "max_ms": 22000000,
+  "schedulers": "sync,async",
+  "mis_nbrs_max": 64,
+  "variants": "MIS-Connector-Backbone,MIS-Connector-TreeAgg,DFS-Spanning-Backbone,GHS-MST-Backbone,WuLi-Dominating-Exact,WuLi-Dominating-Bloom,WuLi-Dominating-Chunked,Anneal-Local,Anneal-TreeAgg,Anneal-Trickle,Greedy-Degree-Backbone,Greedy-Ratio-Backbone,Greedy-Weight-Backbone",
+  "driver": "scratchpad/stage_run.py (cells enumerated directly; matrix.py ratio tuples stop at 8)",
+  "rows": 300,
+  "seconds": 35848.6,
+  "shards": 20,
+  "code_fingerprint": "798b4393cb4f/bebb0f917410",
+  "fingerprint_by_arm_set": {
+   "798b4393cb4f": [
+    "Anneal-Local",
+    "Anneal-TreeAgg",
+    "Anneal-Trickle",
+    "DFS-Spanning-Backbone",
+    "Greedy-Degree-Backbone",
+    "Greedy-Ratio-Backbone",
+    "Greedy-Weight-Backbone",
+    "MIS-Connector-Backbone",
+    "MIS-Connector-TreeAgg",
+    "WuLi-Dominating-Bloom",
+    "WuLi-Dominating-Chunked",
+    "WuLi-Dominating-Exact"
+   ],
+   "bebb0f917410": [
+    "GHS-MST-Backbone"
+   ]
+  },
+  "wall_note": "seconds is summed shard CPU wall, not elapsed time; shards ran in parallel"
+ },
+ "summary": {
+  "_arms": [
+   "Anneal-Local/async",
+   "Anneal-Local/sync",
+   "Anneal-TreeAgg/async",
+   "Anneal-TreeAgg/sync",
+   "Anneal-Trickle/async",
+   "DFS-Spanning-Backbone/async",
+   "DFS-Spanning-Backbone/sync",
+   "GHS-MST-Backbone/async",
+   "GHS-MST-Backbone/sync",
+   "Greedy-Degree-Backbone/async",
+   "Greedy-Degree-Backbone/sync",
+   "Greedy-Ratio-Backbone/async",
+   "Greedy-Ratio-Backbone/sync",
+   "Greedy-Weight-Backbone/async",
+   "Greedy-Weight-Backbone/sync",
+   "MIS-Connector-Backbone/async",
+   "MIS-Connector-Backbone/sync",
+   "MIS-Connector-TreeAgg/async",
+   "MIS-Connector-TreeAgg/sync",
+   "WuLi-Dominating-Bloom/async",
+   "WuLi-Dominating-Bloom/sync",
+   "WuLi-Dominating-Chunked/async",
+   "WuLi-Dominating-Chunked/sync",
+   "WuLi-Dominating-Exact/async",
+   "WuLi-Dominating-Exact/sync"
+  ],
+  "_instances": 0,
+  "_instances_provably_infeasible": 12,
+  "_common_subset_size": 0,
+  "_exact_reference_instances": 0,
+  "_status_vocabulary": [
+   "bad_input",
+   "error",
+   "invalid",
+   "truncated",
+   "infeasible",
+   "unresolved",
+   "contradiction",
+   "ok",
+   "skipped"
+  ],
+  "Anneal-Local/async": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 3,
+    "skipped": 9
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 9,
+   "missed_provable_infeasible": 9,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": 382016.6667
+  },
+  "Anneal-Local/sync": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 3,
+    "skipped": 9
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 9,
+   "missed_provable_infeasible": 9,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": 2232.0,
+   "infeasible_tx_mean": 435662.3333
+  },
+  "Anneal-TreeAgg/async": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 3,
+    "skipped": 9
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 9,
+   "missed_provable_infeasible": 9,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": 382016.6667
+  },
+  "Anneal-TreeAgg/sync": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 3,
+    "skipped": 9
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 9,
+   "missed_provable_infeasible": 9,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": 2232.0,
+   "infeasible_tx_mean": 435662.3333
+  },
+  "Anneal-Trickle/async": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 2,
+    "skipped": 10
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 10,
+   "missed_provable_infeasible": 10,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": 303602.0
+  },
+  "DFS-Spanning-Backbone/async": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 10,
+    "skipped": 2
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 2,
+   "missed_provable_infeasible": 2,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": 997130.3
+  },
+  "DFS-Spanning-Backbone/sync": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 10,
+    "skipped": 2
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 2,
+   "missed_provable_infeasible": 2,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": 8563.2,
+   "infeasible_tx_mean": 1632713.8
+  },
+  "GHS-MST-Backbone/async": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 12
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 0,
+   "missed_provable_infeasible": 0,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": 644381.0833
+  },
+  "GHS-MST-Backbone/sync": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 12
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 0,
+   "missed_provable_infeasible": 0,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": 3196.25,
+   "infeasible_tx_mean": 769736.8333
+  },
+  "Greedy-Degree-Backbone/async": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 1,
+    "skipped": 11
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 11,
+   "missed_provable_infeasible": 11,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": 321388.0
+  },
+  "Greedy-Degree-Backbone/sync": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 1,
+    "skipped": 11
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 11,
+   "missed_provable_infeasible": 11,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": 1912.0,
+   "infeasible_tx_mean": 393800.0
+  },
+  "Greedy-Ratio-Backbone/async": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "skipped": 12
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 12,
+   "missed_provable_infeasible": 12,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": null
+  },
+  "Greedy-Ratio-Backbone/sync": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "skipped": 12
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 12,
+   "missed_provable_infeasible": 12,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": null
+  },
+  "Greedy-Weight-Backbone/async": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "skipped": 12
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 12,
+   "missed_provable_infeasible": 12,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": null
+  },
+  "Greedy-Weight-Backbone/sync": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "skipped": 12
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 12,
+   "missed_provable_infeasible": 12,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": null
+  },
+  "MIS-Connector-Backbone/async": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 10,
+    "skipped": 2
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 2,
+   "missed_provable_infeasible": 2,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": 478208.3
+  },
+  "MIS-Connector-Backbone/sync": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 10,
+    "skipped": 2
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 2,
+   "missed_provable_infeasible": 2,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": 2675.1,
+   "infeasible_tx_mean": 600372.2
+  },
+  "MIS-Connector-TreeAgg/async": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 10,
+    "skipped": 2
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 2,
+   "missed_provable_infeasible": 2,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": 523306.2
+  },
+  "MIS-Connector-TreeAgg/sync": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 10,
+    "skipped": 2
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 2,
+   "missed_provable_infeasible": 2,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": 2675.1,
+   "infeasible_tx_mean": 641645.5
+  },
+  "WuLi-Dominating-Bloom/async": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 9,
+    "skipped": 3
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 3,
+   "missed_provable_infeasible": 3,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": 468494.1111
+  },
+  "WuLi-Dominating-Bloom/sync": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 9,
+    "skipped": 3
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 3,
+   "missed_provable_infeasible": 3,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": 2576.1111,
+   "infeasible_tx_mean": 563597.5556
+  },
+  "WuLi-Dominating-Chunked/async": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 5,
+    "skipped": 7
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 7,
+   "missed_provable_infeasible": 7,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": 781711.4
+  },
+  "WuLi-Dominating-Chunked/sync": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 9,
+    "skipped": 3
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 3,
+   "missed_provable_infeasible": 3,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": 2576.1111,
+   "infeasible_tx_mean": 1141867.5556
+  },
+  "WuLi-Dominating-Exact/async": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 9,
+    "skipped": 3
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 3,
+   "missed_provable_infeasible": 3,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": null,
+   "infeasible_tx_mean": 468494.1111
+  },
+  "WuLi-Dominating-Exact/sync": {
+   "n": 0,
+   "valid": 0,
+   "rows_total": 12,
+   "status": {},
+   "status_all": {
+    "infeasible": 9,
+    "skipped": 3
+   },
+   "trace_disagrees": 0,
+   "verdict_disagrees": 0,
+   "false_success": 0,
+   "on_infeasible_instances": 12,
+   "missed_infeasible": 3,
+   "missed_provable_infeasible": 3,
+   "infeasible_not_cheaply_provable": 0,
+   "infeasible_slots_mean": 2576.1111,
+   "infeasible_tx_mean": 563597.5556
+  },
+  "_matched_pairs": [
+   {
+    "a": "MIS-Connector-Backbone/sync",
+    "b": "MIS-Connector-Backbone/async",
+    "axis": "scheduler",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "MIS-Connector-Backbone/sync",
+    "b": "MIS-Connector-TreeAgg/sync",
+    "axis": "phase5",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "MIS-Connector-Backbone/sync",
+    "b": "WuLi-Dominating-Exact/sync",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "MIS-Connector-Backbone/sync",
+    "b": "WuLi-Dominating-Bloom/sync",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "MIS-Connector-Backbone/sync",
+    "b": "WuLi-Dominating-Chunked/sync",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "MIS-Connector-Backbone/async",
+    "b": "MIS-Connector-TreeAgg/async",
+    "axis": "phase5",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "MIS-Connector-Backbone/async",
+    "b": "WuLi-Dominating-Exact/async",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "MIS-Connector-Backbone/async",
+    "b": "WuLi-Dominating-Bloom/async",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "MIS-Connector-Backbone/async",
+    "b": "WuLi-Dominating-Chunked/async",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "MIS-Connector-TreeAgg/sync",
+    "b": "MIS-Connector-TreeAgg/async",
+    "axis": "scheduler",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "DFS-Spanning-Backbone/sync",
+    "b": "DFS-Spanning-Backbone/async",
+    "axis": "scheduler",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "GHS-MST-Backbone/sync",
+    "b": "GHS-MST-Backbone/async",
+    "axis": "scheduler",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "WuLi-Dominating-Exact/sync",
+    "b": "WuLi-Dominating-Exact/async",
+    "axis": "scheduler",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "WuLi-Dominating-Exact/sync",
+    "b": "WuLi-Dominating-Bloom/sync",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "WuLi-Dominating-Exact/sync",
+    "b": "WuLi-Dominating-Chunked/sync",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "WuLi-Dominating-Exact/async",
+    "b": "WuLi-Dominating-Bloom/async",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "WuLi-Dominating-Exact/async",
+    "b": "WuLi-Dominating-Chunked/async",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "WuLi-Dominating-Bloom/sync",
+    "b": "WuLi-Dominating-Bloom/async",
+    "axis": "scheduler",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "WuLi-Dominating-Bloom/sync",
+    "b": "WuLi-Dominating-Chunked/sync",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "WuLi-Dominating-Bloom/async",
+    "b": "WuLi-Dominating-Chunked/async",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "WuLi-Dominating-Chunked/sync",
+    "b": "WuLi-Dominating-Chunked/async",
+    "axis": "scheduler",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Anneal-Local/sync",
+    "b": "Anneal-Local/async",
+    "axis": "scheduler",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Anneal-Local/sync",
+    "b": "Anneal-TreeAgg/sync",
+    "axis": "phase5",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Anneal-Local/sync",
+    "b": "Anneal-Trickle/async",
+    "axis": "scheduler",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Anneal-Local/async",
+    "b": "Anneal-TreeAgg/async",
+    "axis": "phase5",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Anneal-TreeAgg/sync",
+    "b": "Anneal-TreeAgg/async",
+    "axis": "scheduler",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Anneal-TreeAgg/async",
+    "b": "Anneal-Trickle/async",
+    "axis": "phase5",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Greedy-Degree-Backbone/sync",
+    "b": "Greedy-Degree-Backbone/async",
+    "axis": "scheduler",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Greedy-Degree-Backbone/sync",
+    "b": "Greedy-Ratio-Backbone/sync",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Greedy-Degree-Backbone/sync",
+    "b": "Greedy-Weight-Backbone/sync",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Greedy-Degree-Backbone/async",
+    "b": "Greedy-Ratio-Backbone/async",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Greedy-Degree-Backbone/async",
+    "b": "Greedy-Weight-Backbone/async",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Greedy-Ratio-Backbone/sync",
+    "b": "Greedy-Ratio-Backbone/async",
+    "axis": "scheduler",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Greedy-Ratio-Backbone/sync",
+    "b": "Greedy-Weight-Backbone/sync",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Greedy-Ratio-Backbone/async",
+    "b": "Greedy-Weight-Backbone/async",
+    "axis": "phase1",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   },
+   {
+    "a": "Greedy-Weight-Backbone/sync",
+    "b": "Greedy-Weight-Backbone/async",
+    "axis": "scheduler",
+    "n_both_valid": 0,
+    "only_a_valid": 0,
+    "only_b_valid": 0
+   }
+  ],
+  "_unmatched_note": "Eşleşmiş çift listesinde OLMAYAN kol ikilileri, birden çok eksende ayrıldıkları için kıyaslanabilir değildir; özet onları kıyaslamaz."
+ },
+ "cells": [
+  {
+   "source": "dataset",
+   "group": "medium",
+   "n": 150,
+   "ratio": 8,
+   "m": 1200,
+   "seeds_run": 3,
+   "seeds_in_dataset": 10,
+   "rows": 75,
+   "ok": 0,
+   "single_run": false,
+   "label": "3 tohum"
+  },
+  {
+   "source": "dataset",
+   "group": "medium",
+   "n": 150,
+   "ratio": 10,
+   "m": 1500,
+   "seeds_run": 3,
+   "seeds_in_dataset": 10,
+   "rows": 75,
+   "ok": 0,
+   "single_run": false,
+   "label": "3 tohum"
+  },
+  {
+   "source": "dataset",
+   "group": "medium",
+   "n": 200,
+   "ratio": 8,
+   "m": 1600,
+   "seeds_run": 3,
+   "seeds_in_dataset": 10,
+   "rows": 75,
+   "ok": 0,
+   "single_run": false,
+   "label": "3 tohum"
+  },
+  {
+   "source": "dataset",
+   "group": "medium",
+   "n": 200,
+   "ratio": 10,
+   "m": 2000,
+   "seeds_run": 3,
+   "seeds_in_dataset": 10,
+   "rows": 75,
+   "ok": 0,
+   "single_run": false,
+   "label": "3 tohum"
+  }
+ ]
+}

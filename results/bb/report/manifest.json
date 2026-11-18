@@ -1,0 +1,59 @@
+{
+  "tables": [
+    "results/bb/report/tables/comparison_sweep_small_full_k6_clean_v2.tex",
+    "results/bb/report/tables/comparison_sweep_medium_n50_k6_join_v2.tex",
+    "results/bb/report/tables/comparison_sweep_medium_n100_fixed_v2.tex",
+    "results/bb/report/tables/reliability.tex",
+    "results/bb/report/tables/wireless.tex",
+    "results/bb/report/tables/bridgefix.tex"
+  ],
+  "figures": [
+    "results/bb/report/figures_small/quality_vs_cost.png",
+    "results/bb/report/figures_small/quality_vs_cost.svg",
+    "results/bb/report/figures_small/quality_vs_cost.pdf",
+    "results/bb/report/figures_small/ratio_spread.png",
+    "results/bb/report/figures_small/ratio_spread.svg",
+    "results/bb/report/figures_small/ratio_spread.pdf",
+    "results/bb/report/figures_small/scheduler_effect.png",
+    "results/bb/report/figures_small/scheduler_effect.svg",
+    "results/bb/report/figures_small/scheduler_effect.pdf",
+    "results/bb/report/figures_scale/quality_vs_reliability.png",
+    "results/bb/report/figures_scale/quality_vs_reliability.svg",
+    "results/bb/report/figures_scale/quality_vs_reliability.pdf"
+  ],
+  "scales": [
+    {
+      "label": "Small, n = 10 to 25",
+      "dir": "results/bb/sweep_small_full_k6_clean_v2",
+      "code_fingerprint": "26230cea50b4",
+      "arms": 25,
+      "instances_total": 39,
+      "instances_infeasible": 6,
+      "infeasible_witness": "$m > nk$",
+      "instances_feasible": 33,
+      "instances_common": 32
+    },
+    {
+      "label": "Medium, n = 50",
+      "dir": "results/bb/sweep_medium_n50_k6_join_v2",
+      "code_fingerprint": "26230cea50b4",
+      "arms": 25,
+      "instances_total": 18,
+      "instances_infeasible": 1,
+      "infeasible_witness": "$\\sum_v \\min(\\deg v, k) < m$",
+      "instances_feasible": 17,
+      "instances_common": 17
+    },
+    {
+      "label": "Medium, n = 100",
+      "dir": "results/bb/sweep_medium_n100_fixed_v2",
+      "code_fingerprint": "26230cea50b4",
+      "arms": 20,
+      "instances_total": 12,
+      "instances_infeasible": 0,
+      "infeasible_witness": "$m > nk$",
+      "instances_feasible": 12,
+      "instances_common": 12
+    }
+  ]
+}

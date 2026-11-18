@@ -1,0 +1,71 @@
+\begin{table}[tb]
+\centering
+\caption{Real Mininet-WiFi runs, $n=10$, family \texttt{n10\_m20}. The stations do not always discover the planned topology, so a cover is judged against the graph they actually saw; judging it against the plan would charge the channel to the algorithm.}
+\label{tab:wireless_n10_m20}
+\begin{tabular}{llrrrrrl}
+\toprule
+Seed & Arm & Planned $m$ & Discovered $m$ & Cover weight & Slots & Messages & Valid \\
+\midrule
+1 & Anneal-Local & 20 & 34 & 3808.0 & 107 & 1192 & \checkmark \\
+1 & MIS-Connector-Backbone & 20 & 34 & 4385.0 & 22 & 347 & \checkmark \\
+1 & GHS-MST-Backbone & 20 & 34 & 4385.0 & 34 & 699 & \checkmark \\
+2 & Anneal-Local & 20 & 27 & 4433.0 & 105 & 1148 & \checkmark \\
+2 & MIS-Connector-Backbone & 20 & 27 & 3723.0 & 22 & 318 & \checkmark \\
+2 & GHS-MST-Backbone & 20 & 27 & 3723.0 & 29 & 579 & \checkmark \\
+3 & Anneal-Local & 20 & 38 & 6393.0 & 109 & 1233 & \checkmark \\
+3 & MIS-Connector-Backbone & 20 & 38 & 5329.0 & 22 & 366 & \checkmark \\
+3 & GHS-MST-Backbone & 20 & 38 & 5329.0 & 34 & 736 & \checkmark \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}\footnotesize
+Every arm in a seed discovered the same graph, so the comparison is paired. 9 of 9 runs are validator-clean against the discovered graph.
+\end{flushleft}
+\end{table}
+
+\begin{table}[tb]
+\centering
+\caption{Real Mininet-WiFi runs, $n=15$, family \texttt{n15\_m90}. The stations do not always discover the planned topology, so a cover is judged against the graph they actually saw; judging it against the plan would charge the channel to the algorithm.}
+\label{tab:wireless_n15_m90}
+\begin{tabular}{llrrrrrl}
+\toprule
+Seed & Arm & Planned $m$ & Discovered $m$ & Cover weight & Slots & Messages & Valid \\
+\midrule
+1 & Anneal-Local & 90 & 98 & 9367.0 & 127 & 2471 & \checkmark \\
+1 & MIS-Connector-Backbone & 90 & 98 & 9367.0 & 38 & 1143 & \checkmark \\
+1 & GHS-MST-Backbone & 90 & 98 & 9367.0 & 64 & 2162 & \checkmark \\
+2 & Anneal-Local & 90 & 103 & 11074.0 & 147 & 2989 & \checkmark \\
+2 & MIS-Connector-Backbone & 90 & 103 & 10308.0 & 96 & 2282 & \checkmark \\
+2 & GHS-MST-Backbone & 90 & 103 & 10308.0 & 117 & 3251 & \checkmark \\
+3 & Anneal-Local & 90 & 98 & 9984.0 & 132 & 2595 & \checkmark \\
+3 & MIS-Connector-Backbone & 90 & 98 & 10090.0 & 53 & 1308 & \checkmark \\
+3 & GHS-MST-Backbone & 90 & 98 & 10090.0 & 73 & 2376 & \checkmark \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}\footnotesize
+Every arm in a seed discovered the same graph, so the comparison is paired. 9 of 9 runs are validator-clean against the discovered graph.
+\end{flushleft}
+\end{table}
+
+\begin{table}[tb]
+\centering
+\caption{Real Mininet-WiFi runs, $n=20$, family \texttt{n20\_m160}. The stations do not always discover the planned topology, so a cover is judged against the graph they actually saw; judging it against the plan would charge the channel to the algorithm.}
+\label{tab:wireless_n20_m160}
+\begin{tabular}{llrrrrrl}
+\toprule
+Seed & Arm & Planned $m$ & Discovered $m$ & Cover weight & Slots & Messages & Valid \\
+\midrule
+1 & Anneal-Local & 160 & 187 & 11558.0 & 149 & 4403 & \checkmark \\
+1 & MIS-Connector-Backbone & 160 & 187 & 10800.0 & 65 & 2572 & \checkmark \\
+1 & GHS-MST-Backbone & 160 & 187 & 10800.0 & 94 & 4395 & \checkmark \\
+2 & Anneal-Local & 160 & 185 & 12379.0 & -- & 27375 & \checkmark \\
+2 & MIS-Connector-Backbone & 160 & 185 & 12034.0 & 91 & 3234 & \checkmark \\
+2 & GHS-MST-Backbone & 160 & 185 & 12034.0 & 89 & 4238 & \checkmark \\
+3 & Anneal-Local & 160 & 188 & 14003.0 & 145 & 4253 & \checkmark \\
+3 & MIS-Connector-Backbone & 160 & 188 & 13785.0 & 73 & 3056 & \checkmark \\
+3 & GHS-MST-Backbone & 160 & 188 & 13785.0 & 85 & 3947 & \checkmark \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}\footnotesize
+Every arm in a seed discovered the same graph, so the comparison is paired. 9 of 9 runs are validator-clean against the discovered graph.
+\end{flushleft}
+\end{table}

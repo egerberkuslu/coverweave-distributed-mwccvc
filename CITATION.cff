@@ -1,0 +1,70 @@
+cff-version: 1.2.0
+message: "If you use this software or its results, please cite the manuscript below."
+title: "CoverWeave: a loss-tolerant distributed algorithm for minimum-weight connected capacitated vertex cover in wireless sensor networks"
+abstract: >-
+  CoverWeave is a distributed protocol that builds a connected, capacitated
+  vertex cover for link monitoring in wireless sensor networks from one-hop
+  rules over a backbone, and keeps working when radio messages are lost. The
+  repository holds the protocol, an independent validator, three execution
+  backends and the pre-registered evaluation of the manuscript.
+type: software
+version: 0.1.0
+date-released: "2026-11-18"
+repository-code: "https://github.com/egerberkuslu/coverweave-distributed-mwccvc"
+url: "https://github.com/egerberkuslu/coverweave-distributed-mwccvc"
+keywords:
+  - distributed algorithms
+  - vertex cover
+  - wireless sensor networks
+  - internet of things
+  - link monitoring
+  - graph algorithms
+authors:
+  - family-names: "Uslu"
+    given-names: "Ege Erberk"
+    affiliation: "Ege University"
+    orcid: "https://orcid.org/0000-0001-9119-8574"
+    email: "ege.erberk.uslu@ege.edu.tr"
+  - family-names: "Kol"
+    given-names: "Miray"
+    affiliation: "Ege University"
+    orcid: "https://orcid.org/0009-0007-6588-5590"
+  - family-names: "Çabuk"
+    given-names: "Umut Can"
+    affiliation: "California State University San Marcos"
+    orcid: "https://orcid.org/0000-0002-5166-4670"
+  - family-names: "Dağdeviren"
+    given-names: "Züleyha Akusta"
+    affiliation: "Ege University"
+    orcid: "https://orcid.org/0000-0001-9365-326X"
+  - family-names: "Dağdeviren"
+    given-names: "Orhan"
+    affiliation: "Ege University"
+    orcid: "https://orcid.org/0000-0001-8789-5086"
+preferred-citation:
+  type: unpublished
+  title: "A Loss-Tolerant Distributed Algorithm for Minimum-Weight Connected Capacitated Vertex Cover in Wireless Sensor Networks"
+  year: 2026
+  notes: "Manuscript under review at IEEE Access (Access-2026-53199)"
+  url: "https://github.com/egerberkuslu/coverweave-distributed-mwccvc"
+  authors:
+    - family-names: "Uslu"
+      given-names: "Ege Erberk"
+      affiliation: "Ege University"
+      orcid: "https://orcid.org/0000-0001-9119-8574"
+    - family-names: "Kol"
+      given-names: "Miray"
+      affiliation: "Ege University"
+      orcid: "https://orcid.org/0009-0007-6588-5590"
+    - family-names: "Çabuk"
+      given-names: "Umut Can"
+      affiliation: "California State University San Marcos"
+      orcid: "https://orcid.org/0000-0002-5166-4670"
+    - family-names: "Dağdeviren"
+      given-names: "Züleyha Akusta"
+      affiliation: "Ege University"
+      orcid: "https://orcid.org/0000-0001-9365-326X"
+    - family-names: "Dağdeviren"
+      given-names: "Orhan"
+      affiliation: "Ege University"
+      orcid: "https://orcid.org/0000-0001-8789-5086"

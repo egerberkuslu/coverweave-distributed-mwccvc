@@ -1,0 +1,27 @@
+\begin{table}[tb]
+\centering
+\caption{Reliability across scales: share of feasible runs that terminated and passed the validator. Quality is reported separately, because an arm that fails on the hard instances leaves them out of its own average.}
+\label{tab:reliability}
+\begin{tabular}{lrrr}
+\toprule
+Arm & Small, n = 10 to 25 & Medium, n = 50 & Medium, n = 100 \\
+\midrule
+GHS-MST-Backbone & \textit{98\%} & 100\% & 100\% \\
+Anneal-Local & 100\% & 100\% & -- \\
+Anneal-TreeAgg & 100\% & 100\% & -- \\
+Anneal-Trickle & 100\% & 100\% & -- \\
+DFS-Spanning-Backbone & 100\% & 100\% & 100\% \\
+MIS-Connector-Backbone & 100\% & 100\% & 100\% \\
+MIS-Connector-TreeAgg & 100\% & 100\% & 100\% \\
+WuLi-Dominating-Exact & 100\% & 100\% & 100\% \\
+WuLi-Dominating-Bloom & 100\% & 100\% & 100\% \\
+WuLi-Dominating-Chunked & 100\% & 100\% & 100\% \\
+Greedy-Degree-Backbone & 100\% & 100\% & 100\% \\
+Greedy-Ratio-Backbone & 100\% & 100\% & 100\% \\
+Greedy-Weight-Backbone & 100\% & 100\% & 100\% \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}\footnotesize
+Italic marks a share below 100\%. Capacity-infeasible instances ($m > nk$) are excluded from the denominator, so a value below 100\% is an arm failure and not a property of the instance.
+\end{flushleft}
+\end{table}

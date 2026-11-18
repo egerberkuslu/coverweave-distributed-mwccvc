@@ -1,0 +1,74 @@
+# Job ids the witness cut runs. A job not listed here exits without
+# measuring and without a .done marker, so `fold.py --partial` reports
+# it as missing rather than treating it as finished.
+# Decided 2026-09-18 by the team lead: milestones 1-3 whole, plus one
+# witness configuration (MIS-Connector-Backbone/sync) on each of the
+# eight n>=250 dense files.
+fill_xlarge_n500_m3000_s1_00
+fill_xlarge_n750_m4500_s1_00
+fill_xlarge_n1000_m6000_s1_00
+fill_xlarge_n1000_m6000_s1_01
+fill_xlarge_n1000_m6000_s1_02
+fill_largedense_n150_m1200_s1_00
+fill_largedense_n150_m1200_s2_00
+fill_largedense_n150_m1200_s3_00
+fill_largedense_n150_m1500_s1_00
+fill_largedense_n150_m1500_s2_00
+fill_largedense_n150_m1500_s3_00
+fill_largedense_n200_m1600_s1_00
+fill_largedense_n200_m1600_s2_00
+fill_largedense_n200_m1600_s3_00
+fill_largedense_n200_m2000_s1_00
+fill_largedense_n200_m2000_s2_00
+fill_largedense_n200_m2000_s2_01
+fill_largedense_n200_m2000_s3_00
+fill_largedense_n200_m2000_s3_01
+new_n150_m1200_s4_00
+new_n150_m1200_s5_00
+new_n150_m1200_s6_00
+new_n150_m1200_s7_00
+new_n150_m1200_s8_00
+new_n150_m1200_s9_00
+new_n150_m1200_s10_00
+new_n150_m1500_s4_00
+new_n150_m1500_s5_00
+new_n150_m1500_s6_00
+new_n150_m1500_s7_00
+new_n150_m1500_s8_00
+new_n150_m1500_s9_00
+new_n150_m1500_s10_00
+new_n200_m1600_s4_00
+new_n200_m1600_s5_00
+new_n200_m1600_s5_01
+new_n200_m1600_s6_00
+new_n200_m1600_s6_01
+new_n200_m1600_s7_00
+new_n200_m1600_s7_01
+new_n200_m1600_s8_00
+new_n200_m1600_s8_01
+new_n200_m1600_s9_00
+new_n200_m1600_s9_01
+new_n200_m1600_s10_00
+new_n200_m1600_s10_01
+new_n200_m2000_s4_00
+new_n200_m2000_s4_01
+new_n200_m2000_s5_00
+new_n200_m2000_s5_01
+new_n200_m2000_s6_00
+new_n200_m2000_s6_01
+new_n200_m2000_s7_00
+new_n200_m2000_s7_01
+new_n200_m2000_s8_00
+new_n200_m2000_s8_01
+new_n200_m2000_s9_00
+new_n200_m2000_s9_01
+new_n200_m2000_s10_00
+new_n200_m2000_s10_01
+new_n250_m2000_s1_00
+new_n250_m2500_s1_00
+new_n500_m4000_s1_00
+new_n500_m5000_s1_00
+new_n750_m6000_s1_00
+new_n750_m7500_s1_00
+new_n1000_m8000_s1_00
+new_n1000_m10000_s1_00

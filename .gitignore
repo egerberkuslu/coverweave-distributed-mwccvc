@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# LaTeX build byproducts
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.nav
+*.snm
+*.vrb
+texput.log
+
+# Fetched data (see tools/fetch_dagdeviren.py)
+data/
+external_sources/
+
+# Editors and OS
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
+
+# Internal working material, kept locally and never published
+_internal/

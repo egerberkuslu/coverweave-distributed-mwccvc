@@ -1,0 +1,39 @@
+\begin{table}[tb]
+\centering
+\caption{xlarge. See the sweep manifest. Common valid subset: 8 of 8 feasible instances; 4 instance(s) excluded as provably capacity-infeasible ($\sum_v \min(\deg v, k) < m$). Weights are relative to Anneal-Local/async, the lightest arm on this subset.}
+\label{tab:cmp-xlarge}
+\begin{tabular}{lrrrrrr}
+\toprule
+Arm & Valid runs & Weight / best & Algorithm msgs & HELLO msgs & Rounds & Time (ms) \\
+\midrule
+GHS-MST-Backbone/async & 8/8 & 1.191 & 36846 & 56074 & -- & 17678 \\
+GHS-MST-Backbone/sync & 8/8 & 1.215 & 54566 & 101170 & 165 & 33025 \\
+Anneal-Local/async & 8/8 & \textbf{1.000} & \textbf{7713} & 66232 & -- & 21744 \\
+Anneal-Local/sync & 8/8 & 1.006 & 7749 & 69395 & 124 & 24875 \\
+Anneal-TreeAgg/async & 8/8 & \textbf{1.000} & \textbf{7713} & 66232 & -- & 21744 \\
+Anneal-TreeAgg/sync & 8/8 & 1.006 & 7749 & 69395 & 124 & 24875 \\
+Anneal-Trickle/async & 8/8 & 1.058 & 7720 & 37852 & -- & 21909 \\
+DFS-Spanning-Backbone/async & 8/8 & 1.291 & 16105 & 2391950 & -- & 639062 \\
+DFS-Spanning-Backbone/sync & 8/8 & 1.291 & 16101 & 4708938 & 6302 & 1260475 \\
+MIS-Connector-Backbone/async & 8/8 & 1.293 & 8350 & 14990 & -- & 5619 \\
+MIS-Connector-Backbone/sync & 8/8 & 1.293 & 8520 & 21156 & 49 & 9850 \\
+MIS-Connector-TreeAgg/async & 8/8 & 1.293 & 46564 & 15677 & -- & 8175 \\
+MIS-Connector-TreeAgg/sync & 8/8 & 1.293 & 65477 & 21156 & 58 & 11575 \\
+WuLi-Dominating-Exact/async & 8/8 & 1.292 & 7977 & 13622 & -- & 5113 \\
+WuLi-Dominating-Exact/sync & 8/8 & 1.292 & 7977 & 17444 & 44 & 8775 \\
+WuLi-Dominating-Bloom/async & 8/8 & 1.293 & 7977 & 13622 & -- & 5113 \\
+WuLi-Dominating-Bloom/sync & 8/8 & 1.293 & 7977 & 17444 & 44 & 8775 \\
+WuLi-Dominating-Chunked/async & 8/8 & 1.292 & 7977 & 17101 & -- & 5113 \\
+WuLi-Dominating-Chunked/sync & 8/8 & 1.292 & 7977 & 22049 & 43 & 8675 \\
+Greedy-Degree-Backbone/async & 8/8 & 1.293 & 17303 & 14976 & -- & 5619 \\
+Greedy-Degree-Backbone/sync & 8/8 & 1.293 & 20003 & 21132 & 49 & 9825 \\
+Greedy-Ratio-Backbone/async & 8/8 & 1.293 & 17303 & 14976 & -- & 5619 \\
+Greedy-Ratio-Backbone/sync & 8/8 & 1.293 & 20003 & 21132 & 49 & 9825 \\
+Greedy-Weight-Backbone/async & 8/8 & 1.293 & 17303 & 14976 & -- & 5619 \\
+Greedy-Weight-Backbone/sync & 8/8 & 1.293 & 20003 & 21132 & 49 & 9825 \\
+\bottomrule
+\end{tabular}
+\begin{flushleft}\footnotesize
+``Rounds'' is defined only under the synchronous scheduler; an asynchronous run has no global round, so those cells are empty and the time column carries the comparison instead. Messages are split because a single total conflates two things: ``algorithm msgs'' is the protocol's own traffic, while HELLO is the periodic neighbour beacon and grows with nodes times rounds, so it charges a SLOW arm rather than a CHATTY one. ``Weight / best'' is relative to the best arm on the same instances and is NOT an approximation ratio; ``weight / optimum'' is, and is defined only where the exact solver ran. ``Valid runs'' counts rows that both terminated and passed the validator, over the feasible instances. Lower is better in every numeric column.
+\end{flushleft}
+\end{table}
