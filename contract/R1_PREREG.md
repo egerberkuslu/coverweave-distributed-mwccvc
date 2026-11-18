@@ -503,3 +503,38 @@ certifies infeasibility in the network and reports the cost on infeasible
 instances per arm. If F17b is dropped, the depth bound stays at min(n, 255) and
 every large infeasible run is reported with its cost and any time-limit
 truncation.
+
+### Amendment 12, 2026-11-18, before the frozen tag, before any held-out instance exists, and before any calibration run
+
+Defects found while estimating the run time of the registered blocks on
+development instances and smoke seeds 1 to 3.
+
+- Spanning-tree arm under loss. A lost INITIATE that a fragment forwards to a
+  child is never sent again, so the child stays one level behind and the TEST
+  messages addressed to it are deferred for ever; the GHS frames carry no epoch,
+  so frames of an earlier epoch are processed after a restart, and one
+  asynchronous run crashes when a REPORT reaches a node that was never
+  initiated. Under 5 percent independent loss at n = 100, and in some conditions
+  at n = 50, the arm runs to the time limit, so hypothesis H-c would fail for it
+  for an implementation reason.
+- Depth-first comparison arm. A TOKEN of a larger walk is answered with a bounce
+  instead of being ignored as the extinction principle of the published
+  algorithm prescribes, so a stale token travels between two absorbed nodes for
+  ever and the run never ends, under the synchronous scheduler on unit disk
+  graphs even without loss.
+
+Repairs, each with a regression test from the run that exposed it.
+- F18: INITIATE is repeated until the child reports at the new level (the
+  persistent-request rule of repair F1), and GHS frames carry the epoch byte of
+  repair F3, so frames of an earlier epoch are dropped.
+- F19: the comparison arm ignores a TOKEN of a larger walk, as the published
+  algorithm does. This restores the published behaviour and does not improve
+  the arm.
+
+Acceptance. F18: lossy spanning-tree runs at 5, 20 and 30 percent independent
+loss and under the Gilbert-Elliott channel on development instances with n = 50
+and 100 end within the time limit and valid; lossless spanning-tree runs keep
+verdict, cover and weight; the worked example is unchanged. F19: the stalled
+development and smoke runs end solved and valid; lossless runs of the arm keep
+their cover and weight where they ended before. If F18 is dropped, H-c is
+reported as failed for the spanning-tree arm with its cost.
