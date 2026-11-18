@@ -540,3 +540,35 @@ their cover and weight where they ended before. If F18 is dropped, H-c is
 reported as failed for the spanning-tree arm with its cost.
 
 Acceptance note to Amendment 12, 2026-11-18, before the frozen tag and before any held-out instance exists. The mechanism of F18 as built and measured on development instances differs from the wording above, and the wording is corrected to it: a fragment repeats INITIATE to a child whose HELLO shows an older round, and repeats CHANGE_ROOT with its level until the next round (a lost CHANGE_ROOT caused 9 of the 57 truncated development runs); the arm drops GHS frames whose sender's epoch, as recorded from its HELLO, differs from the receiver's; a REPORT of a round the receiver has not entered is deferred, which removes the crash. No epoch byte is added to GHS frames. Measured: 66 of 66 lossy development and smoke runs solved and valid against 57 of 66 truncated before; 480 lossless runs identical in verdict, cover, weight and slots, with at most 0.48 percent more frames. F19 is accepted as registered.
+
+### Amendment 13, 2026-11-18, before the frozen tag, before any held-out instance exists and before any calibration run. Consolidation of the repair conditions into six general rules (D1).
+
+Motivation. The bounded exhaustive explorer (X1, `ccvc/bb/explore_loss.py`) and the design analysis D1 found six violation classes on the live tree (fingerprint d40573c10255): runs reported converged while frames remain; asymmetric frozen views giving false solved verdicts and covers disconnected on the discovered graph; a refusal treated as final after a transient re-verification; a false in-network infeasibility certificate on the spanning-tree arm; phase-1 state left at silence; decisions reading neighbour records announced in an older epoch; and a closed node that owes a request to a departed peer and never stops. Each is an instance of a condition that earlier repairs applied locally. The following rules replace those conditions. They are stated for every arm, and each is implemented once.
+
+G1, epoch rule. A decision rule reads a neighbour only through the frozen-view accessor, and that accessor returns only records whose last HELLO carried the reader's epoch. A record of another epoch counts as not heard, so the rule waits (the F4 wait). Records are filtered, not deleted, because liveness and the signal-strength gate are properties of the link. The HELLO-borne epoch tests of F12b, F15 and F16b, and F18's record test, use the same predicate. F3's frame byte stays.
+
+G2, mutual verification per epoch. (a) A restart or an epoch adoption sets every record unverified and starts its handshake again. (b) A LINK is answered only by a node that holds a record of the asker with its gate open. A LINK that arrives before the asker's HELLO is answered when that HELLO arrives. (c) A node's DONE HELLO carries its frozen view as a list of identifiers. A node that finds itself missing from the DONE view of a frozen neighbour marks that neighbour unverified, so its view difference restarts the epoch. Together these make the final frozen views symmetric on every backend, which replaces the assumption of symmetric final views in Section IV.
+
+G3, request rule. Every request (JOIN of every reason, HANDOVER, PUSH, relayed invitation, late acknowledgement, CERT) is repeated with the capped doubling backoff until it is answered or the epoch changes. The give-up and re-arm of JOIN (F1) is withdrawn. A receiver answers every copy: from the reply cache or the high-water mark (F5, F14), by a refusal only if the sender is outside its frozen view (F7), and by silence if the sender is a frozen neighbour whose record is momentarily unverified or older (the F4 wait). A refusal is therefore final for the epoch.
+
+G4, finishing rule. A node owes something while it has an open request, a push chain, a relayed search, a certificate wave, an unconfirmed announcement (F15), a hand-off (F16b) or a stale frozen record (F4/G1). Its barrier is closed exactly when it is DONE, owes nothing and every frozen record is DONE. It is `done` exactly when its barrier is closed. It falls silent and suspends expiry only when closed, so a node that owes something keeps beaconing and expires a silent peer (F13 windows).
+
+G5, certificate rule. The in-network infeasibility verdict is issued only by a completed echo wave over the frozen views (F17a, docs/r1_patches/F17.patch). A wave is complete only when every node has heard from every frozen neighbour. The spanning-tree arm's REPORT sums (F12b) no longer certify; on that arm a positive sum starts a wave. F17b: the F11 push depth is capped at D_max, the smallest power of two that keeps every F11 resolution on the 75 development runs with m = nk at its F11 outcome (rule of Amendment 11); the measured value is entered in the acceptance note of this amendment before any held-out instance exists.
+
+G6, phase rule. Deferred questions of a finished arm phase (the spanning-tree arm's deferred GHS questions at halt) are discarded at the transition.
+
+Replaced conditions: F1's JOIN re-arm (by G3); the scattered epoch tests of F12b, F15, F16b and F18 (by G1); the per-predicate obligation lists in `done`, `_barrier_closed` and `settled` (by G4); F12b's certificate (by G5); and the symmetric-view assumption (by G2). Every other repair (F2 to F19) is kept unchanged.
+
+Acceptance, all on a private copy before anything is applied to the live tree:
+(i) the full `ccvc/bb` suite passes, one process per file;
+(ii) X1's explorer, re-run on the copy with the same tier, reports zero violations, apart from `epoch_split_exempt` and symmetric missing edges (G ≠ Ĝ*), and every remaining one is named with the assumption it lies outside;
+(iii) the constructed failing runs of F1 to F19 and of D1 (older-epoch reads, closed departure) pass;
+(iv) the worked example has the same cover, weight and verdict under both schedulers, and its slots, tx, rx and bytes are reported against the submitted 54/522/1397/6866 (sync) and 381/966/4813 (async);
+(v) on the lossless development runs, verdicts, covers and weights are identical, and frame counts, bytes, maximum payload and convergence time are reported per file.
+
+If (iv) or (v) fails for a rule, that rule is withdrawn or revised and re-registered before it is used.
+
+Correction to the acceptance note of Amendment 12: the F18 repeat of INITIATE is triggered by a child's REPORT of an older round or its CHANGE_ROOT of an older level, once the parent's round is at least 600 ms old; it is not triggered by HELLO.
+
+Not included, and stated in the manuscript instead: several decisions (the connector pair rule, the gap rule, Phase 2, the transfer ladder, the end of phase 1 on the spanning-tree arm) depend on message timing, so the lossless cover can differ between the synchronous and the asynchronous scheduler (measured on 1 of 20 development files, +10.7 percent weight in sync). A phase-ordering rule that removes this changes lossless covers and is not part of this amendment; results are reported per scheduler.
+
