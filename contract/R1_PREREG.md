@@ -466,3 +466,40 @@ the links of a node that missed it, and reports the count of such links per
 block. With or without F16b the manuscript states the bound beyond which a
 burst is treated as a departure, and every block reports planned links missing
 from the discovered graph.
+
+### Amendment 11, 2026-11-18, before the frozen tag, before any held-out instance exists, and before any calibration run
+
+Defect found on development instances. Repair F11 lets every overloaded node
+deepen its push up to min(n, 255) hops, and each push waits up to 2d+4 periods.
+On an infeasible instance every such repair fails, nothing bounds the total
+futile work, and the number of slots grows with n: 2.5 times the code before
+F11 at n = 20, 5.2 times at n = 100, 10.4 times at n = 200, more at n = 500
+(development instances with m = 8n and k = 6, lossless). The cost per slot is
+unchanged; feasible runs are unchanged. The spanning-tree arm is not affected
+when its in-network certificate (F12b) fires.
+
+Repair F17, two parts, both measured on development instances only.
+- F17a, certificate on every arm. The counting certificate of F12b (sum over
+  nodes of min(deg, k) against m, and m against nk) is aggregated once per epoch
+  over a tree rooted in the backbone, for the arms that have no spanning tree.
+  A node that learns a certified verdict starts no repair and reports
+  unresolved, as on the spanning-tree arm.
+- F17b, bounded depth. The push depth of F11 is capped at a constant D_max
+  chosen on the development set as the smallest power of two that keeps every
+  repair F11 resolved on the 75 development runs with m = nk at their F11
+  outcome. The value is fixed in this amendment's acceptance note before any
+  held-out instance exists and is not tuned again.
+
+Acceptance. The 75 development runs with m = nk keep their verdicts and covers;
+infeasible development instances at m = 8n and k = 6 cost at most 2 times the
+code before F11 in slots for n up to 200; certified runs report unresolved with
+the verdict equal to the run-level flow check and no false certificate on any
+feasible development run; the lossless worked example is unchanged in cover
+and weight. Infeasible instances that the counting certificate misses are
+reported with their cost (block M9).
+
+If F17a is dropped, the manuscript states that only the spanning-tree arm
+certifies infeasibility in the network and reports the cost on infeasible
+instances per arm. If F17b is dropped, the depth bound stays at min(n, 255) and
+every large infeasible run is reported with its cost and any time-limit
+truncation.
