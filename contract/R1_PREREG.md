@@ -198,3 +198,43 @@ derived from them. The empirical condition of M6 uses the delivery ratios
 measured in the M7 re-runs at the frozen tag, whose logs are kept. M6 runs its
 other eight conditions first. If M7 is not run, the empirical condition is
 dropped and the manuscript says so.
+
+### Amendment 4, 2026-11-18, before the frozen tag and before any held-out instance exists
+
+Source. The repair work of Amendment 1 on development instances only (the
+worked example, n15_m90_s1, n50_m300_s2 and small loss runs on development
+graphs). No held-out instance exists yet.
+
+Decisions.
+- F2 is kept exactly as registered. A cheaper variant that raises the flag
+  only for a silent neighbour was measured and not adopted. It is reported as
+  such.
+- Verdict clause. A node with an open request or a running push chain is not
+  done. Without it, asynchronous runs were declared finished while chains were
+  still running.
+- F7. A node answers a request from a peer it hears but has not verified with
+  a refusal, so that a request is always answered when gates are one-way on
+  the emulated backend.
+- F8. The spanning-tree arm stalled in its own backbone phase in 1 of 12 lossy
+  development runs, in the submitted and in the repaired code. One bounded
+  repair attempt is made before the tag, with the stalling run as its
+  regression test. If it needs a redesign, the arm is frozen as it is and the
+  stall rate is reported.
+- The token-based depth-first arm is a comparison arm from the literature and
+  is not loss-hardened. Its runs under loss are reported as they end.
+
+Known and reported, not repaired. A late acknowledgement of a push chain that
+outlasted its sender's timeout is sent once. If it is lost, both ends own the
+edge. The ownership theorem therefore keeps the assumption that every accepted
+transfer was acknowledged, and the validator counts every doubly owned edge.
+
+Two validity readings, both reported for every run.
+- Validity on the final discovered graph, which is the graph the guarantees
+  refer to. A false success is a run reported as solved that is invalid on
+  this graph.
+- Validity on the planned graph. Planned links that are missing from the
+  discovered graph, and discovered links that were not planned, are counted
+  per run, together with the transmissions sent after the verdict and the
+  number of restarts.
+Hypothesis H-a and H-c are evaluated on the first reading. The second reading
+is reported next to it in every table that reports validity under loss.
