@@ -12,7 +12,7 @@
 ![Paper](https://img.shields.io/badge/IEEE%20Access-under%20review-00629B)
 ![Emulation](https://img.shields.io/badge/emulation-Mininet--WiFi-2ea44f)
 ![Evaluation](https://img.shields.io/badge/evaluation-pre--registered-6f42c1)
-![Licence](https://img.shields.io/badge/licence-see%20below-lightgrey)
+![Licence](https://img.shields.io/badge/licence-academic%20use%20only-8250df)
 
 [Quick start](#quick-start) · [Reproducing the paper](#reproducing-the-paper) · [Results](#results) · [Algorithms and names](#algorithms-and-names) · [Step-by-step guide](docs/REPRODUCE.md) · [Pre-registration](contract/R1_PREREG.md) · [Cite](#how-to-cite)
 
@@ -356,7 +356,10 @@ grant no. 1821.
 
 ## Licence and contact
 
-This repository has no licence file at present, so no licence is granted beyond
-viewing the code. Please ask the corresponding author before reuse.
+The code, documentation and result files of this repository are released under
+the [CoverWeave Academic Use Licence](LICENSE). They may be used, copied and
+modified free of charge for teaching, study, peer review and non-commercial
+research, with a citation of the paper. Every other use, commercial use
+included, needs written permission.
 
-Corresponding author: Umut Can Çabuk, ucabuk@csusm.edu.
+Contact: Ege Erberk Uslu, ege.erberk.uslu@ege.edu.tr.

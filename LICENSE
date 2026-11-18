@@ -1,0 +1,53 @@
+CoverWeave Academic Use Licence, version 1.0
+
+Copyright (c) 2026 Ege Erberk Uslu, Miray Kol, Umut Can Cabuk,
+Zuleyha Akusta Dagdeviren and Orhan Dagdeviren. All rights reserved.
+
+1. Definitions
+
+"Software" means the source code, documentation, figures and result files in
+this repository. "Academic use" means use for teaching, study, peer review, or
+research that is not carried out for commercial advantage or monetary
+compensation, by a student, researcher, reviewer or member of staff of a
+university, school, public research institute or other non-profit research
+organisation, or by an individual acting for such a purpose.
+
+2. Permission
+
+Permission is granted, free of charge, to any person to use, copy, run and
+modify the Software for academic use only, and to share the Software and
+modified versions of it with others for academic use only, provided that:
+
+  (a) this licence and the copyright notice above are included with every copy
+      and every modified version;
+  (b) modified versions state clearly that they were changed and by whom;
+  (c) any publication, report, thesis or presentation that uses the Software or
+      results obtained with it cites the paper named in the file CITATION.cff.
+
+3. Uses that need written permission
+
+Every other use needs the prior written permission of the copyright holders.
+This includes, without limitation, use in or for a commercial product or
+service, use by or for a for-profit organisation, selling or sublicensing the
+Software, and use in a deployed or operational system. Requests are sent to
+Ege Erberk Uslu, ege.erberk.uslu@ege.edu.tr.
+
+4. Third-party material
+
+This licence covers only material written by the copyright holders. Benchmark
+data, templates and other third-party material keep the terms of their own
+sources.
+
+5. No warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+6. Termination
+
+The permission in section 2 ends automatically for anyone who breaks these
+terms.
