@@ -427,3 +427,42 @@ If F15 is dropped, the ownership theorem is stated with its condition in the
 statement, the stale-load execution is described in the manuscript as a known
 limitation with its probability under independent loss, and the validator's
 count of doubly owned edges is reported for every block.
+
+### Amendment 10, 2026-11-18, before the frozen tag, before any held-out instance exists, and before any calibration run
+
+Outcome of F16 as registered in Amendment 9. The rule was implemented as
+written and changed nothing: the node that stays in the earlier epoch never
+receives a frame of the newer one, and its neighbour's new view no longer
+contains it. On three constructed development runs every surviving node
+receives exactly the frames it receives when that node is switched off after
+its last frame, slot by slot. A finished node is silent, so its neighbours
+cannot tell a long burst on its link from its departure. An exploratory
+variant in which the neighbour keeps announcing the new epoch until it hears
+the node again ends the three runs in one epoch but never becomes silent after
+a real departure, so it is rejected. F16 as registered is dropped.
+
+Repair F16b, bounded epoch hand-off. A node that restarts, or adopts a newer
+epoch, while a neighbour it held as finished has expired from its table keeps
+its barrier open and keeps announcing the epoch until it hears that neighbour
+in the new epoch or until a hand-off wait of twice the stale-window cap has
+passed, whichever comes first. The wait is a fixed multiple of an existing
+parameter and is not tuned.
+
+Claim to be tested, on development instances only. With F16b, every burst on
+one link that is shorter than the hand-off wait ends with all nodes in one
+epoch, whatever the activity of the neighbour, and a real departure still ends
+in silence at a bounded extra cost.
+
+Acceptance. On the three constructed runs and their variants with a later
+burst start, every burst length from 1 up to the hand-off wait ends in one
+epoch; the departure twins become silent; the lossless worked example keeps
+its cover and weight; no development instance changes validity. The extra
+frames after a departure are measured and reported.
+
+If the claim fails, F16b is reverted, and the manuscript states that a node
+can miss a restart under a burst of positive probability, that the final epoch
+is common to the nodes that hear the restart, that the discovered graph lacks
+the links of a node that missed it, and reports the count of such links per
+block. With or without F16b the manuscript states the bound beyond which a
+burst is treated as a departure, and every block reports planned links missing
+from the discovered graph.
