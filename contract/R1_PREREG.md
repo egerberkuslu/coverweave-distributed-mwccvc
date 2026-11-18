@@ -353,3 +353,38 @@ for the MIS-connector arm is not added, because removing a cover node keeps
 the cover connected only if a property of the whole cover holds, which a node
 cannot check from one-hop information. No approximation ratio is claimed and
 no physical testbed is used.
+
+### Amendment 8, 2026-11-18, before the frozen tag, before any held-out instance exists, and before any calibration run
+
+Source. The repair work of Amendment 7 on development instances.
+
+Outcomes of Amendment 7.
+- F10 is in. The regression test passes.
+- F13 is in. On the 90 development loss runs, planned links missing from the
+  discovered graph fell from 17 to 0.
+- F11 is in with one change. The push depth is doubled at each step, not
+  raised by one, because raising by one cost 6.6 to 27 times more frames on
+  infeasible runs. Of the 25 unresolved development runs, 23 now end valid.
+  The 2 that remain are runs of the spanning-tree arm whose cover lacks one
+  node that no overloaded node can invite from where it is.
+- F12 was dropped and its code was not installed. The tree-aggregation phase
+  never completed on the infeasible development runs.
+
+Two further bounded attempts, each reverted if it does not pass.
+- F11b, invitation at a distance. An overloaded node that has used the full
+  push depth sends an invitation that is relayed through the cover until it
+  reaches a cover node with a neighbour outside the cover, which then invites
+  that neighbour. Acceptance: the 2 remaining runs end valid, the other 23
+  stay valid, and no other development instance changes validity.
+- F12b, certificate in the spanning-tree arm. The sums of the witness ride on
+  the final report wave of the spanning-tree construction, and its root
+  announces the verdict. Acceptance: on the infeasible development instances
+  the spanning-tree arm announces infeasibility in the network, the verdict
+  equals the run-level check, and the message cost is measured. All other arms
+  keep the run-level check.
+
+Time limit. One infeasible development instance with at least 500 nodes is
+run under F11 before the tag, to confirm that a run still ends within the
+time limit of the development sweep. If it does not, the push depth cap is
+lowered from the number of nodes to the largest value that does, and the cap
+is reported.
