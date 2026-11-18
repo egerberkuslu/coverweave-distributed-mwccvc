@@ -238,3 +238,36 @@ Two validity readings, both reported for every run.
   number of restarts.
 Hypothesis H-a and H-c are evaluated on the first reading. The second reading
 is reported next to it in every table that reports validity under loss.
+
+### Amendment 5, 2026-11-18, before the frozen tag, before any held-out instance exists, and before any calibration run
+
+Source. Smoke runs on four development instances (the worked example,
+n10_m20_s1, n10_m40_s1, n15_m30_s1). Under Gilbert-Elliott loss with stationary
+rate 10 percent and mean burst 4 frames, 67 of 72 runs of the repaired code and
+66 of 72 runs of the submitted code hit the time limit. The cause is the
+soft-state timeout. A neighbour record expires after 3 missed HELLOs, a burst
+lasts 4 frames on average, so records keep expiring and the protocol restarts
+about every 1.8 s. No run ended with an invalid cover.
+
+Repair. No code change. The stale window is a parameter, and a bursty channel
+needs a stale window longer than its bursts. A bursty-channel profile is
+calibrated on development instances only, by the rule fixed here before any
+calibration run.
+- Calibration set. The four instances above plus n25_m50_s1, n25_m100_s1,
+  n50_m100_s1 and n50_m200_s1, three arms (MIS-connector, spanning tree,
+  annealing), both schedulers, channel seeds 1 to 3, loss ge:0.10:4, the time
+  limit of the development sweep.
+- Candidates. Stale periods in {6, 12, 24, 48}, with the stabilisation window
+  kept equal to the stale window as in the default.
+- Rule. The profile is the smallest candidate for which at least 95 percent of
+  the calibration runs end within the time limit with a cover that is valid on
+  the discovered graph. If no candidate reaches 95 percent, the candidate with
+  the highest share is taken and the shortfall is reported.
+- The profile is then fixed. It is never adjusted on held-out data.
+
+Use in the blocks. M6 runs every Gilbert-Elliott condition twice, with the
+default stale window and with the bursty-channel profile, and reports both.
+Independent-loss and lossless conditions use the default. M8 keeps its stale
+window factor. The cost of the profile, slower detection of a neighbour that
+has really gone, is reported from the lossless runs of the same instances with
+the profile.
