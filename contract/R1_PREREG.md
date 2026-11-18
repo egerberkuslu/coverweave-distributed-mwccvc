@@ -305,3 +305,51 @@ Use in the blocks. If F9 is accepted it is part of the frozen protocol and is
 on in every block, and M6 additionally reports the Gilbert-Elliott conditions
 with F9 switched off, as the ablation. If F9 is not accepted, the profile rule
 of Amendment 5 applies and the failure of F9 is reported.
+
+### Amendment 7, 2026-11-18, before the frozen tag, before any held-out instance exists, and before any calibration run
+
+Principle, set by the authors. A weakness found during the revision is
+repaired in the protocol where a repair exists, and the manuscript and the
+response letter state the weakness, its cause and the repair. A weakness is
+only reported without repair when no sound repair exists, and the reason is
+given. This amendment replaces the "known and reported, not repaired" item of
+Amendment 4 and adds three more repairs. All sources are development
+instances and the proof audit.
+
+- F10, late acknowledgement. The acknowledgement of a push chain that outlasted
+  its sender's timeout is sent as a request that is repeated until it is
+  answered. Regression test: the late acknowledgement is lost three times and
+  the run ends with no doubly owned edge.
+- F11, deepening ownership repair. When the bounded repair rounds are used up
+  at an overloaded node, the push depth is raised step by step, up to the
+  number of nodes, before the node reports unresolved. Acceptance on the three
+  feasible development instances with m = nk on which 25 runs ended
+  unresolved (n200_m1200_s3, s6 and s10): every arm ends valid on a lossless
+  channel. The added message cost is reported. No other development instance
+  may lose validity.
+- F12, in-network infeasibility certificate. In the arms that build a rooted
+  tree, the two sums of the degree-gap witness and of the counting bound are
+  aggregated over the tree and the root announces the verdict. Acceptance: on
+  infeasible development instances the nodes announce infeasibility
+  themselves, the verdict equals the run-level check, and the message cost is
+  measured. Arms without a rooted tree keep the run-level check, and the
+  manuscript says which is which.
+- F13, pending neighbour. A neighbour that is heard but not yet verified keeps
+  a node from finishing until it is verified or has been silent for its stale
+  window. Acceptance: on the development loss runs that ended with planned
+  links missing from the discovered graph or with transmissions after the
+  verdict, both counts fall, and lossless runs are unchanged.
+
+Rules for all repairs F7 to F13. Each has a regression test that fails on the
+code before the repair. Lossless results may change only in message and slot
+counts, never in validity, and every change is reported. A repair that cannot
+pass its test without a redesign is dropped, the code for it is reverted, and
+the weakness is reported with the reason. The calibration of Amendments 5 and
+6 is run once, after all repairs are in and before the tag.
+
+Not repaired, with reasons. The token-based depth-first arm is a comparison
+arm from the literature and is reported as it ends under loss. A pruning step
+for the MIS-connector arm is not added, because removing a cover node keeps
+the cover connected only if a property of the whole cover holds, which a node
+cannot check from one-hop information. No approximation ratio is claimed and
+no physical testbed is used.
