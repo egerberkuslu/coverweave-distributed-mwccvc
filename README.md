@@ -349,11 +349,6 @@ it as the "Cite this repository" button.
 | Züleyha Akusta Dağdeviren | Department of Computer Engineering, Ege University, Izmir, Türkiye | [0000-0001-9365-326X](https://orcid.org/0000-0001-9365-326X) |
 | Orhan Dağdeviren | Department of Computer Engineering and Department of Artificial Intelligence and Data Engineering, Ege University, Izmir, Türkiye | [0000-0001-8789-5086](https://orcid.org/0000-0001-8789-5086) |
 
-## Acknowledgement
-
-This work was supported by Amateur Radio Digital Communications (ARDC) under
-grant no. 1821.
-
 ## Licence and contact
 
 The code, documentation and result files of this repository are released under
