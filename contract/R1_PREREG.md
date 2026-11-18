@@ -271,3 +271,37 @@ Independent-loss and lossless conditions use the default. M8 keeps its stale
 window factor. The cost of the profile, slower detection of a neighbour that
 has really gone, is reported from the lossless runs of the same instances with
 the profile.
+
+### Amendment 6, 2026-11-18, before the frozen tag, before any held-out instance exists, and before any calibration run
+
+Source. The same development smoke runs as Amendment 5. No calibration run has
+been made.
+
+The restart loop under bursty loss is a design defect and is repaired in the
+protocol, not by a hand-chosen parameter. The protocol treated a neighbour
+that was silent for three HELLO periods as a neighbour that had left, and
+restarted the whole network.
+
+- F9, adaptive stale window. Every node keeps one stale window per neighbour,
+  starting at the default of 3 periods. When a neighbour whose record expired
+  is heard again, the expiry was a false suspicion, and the stale window of
+  that neighbour doubles, up to a cap of 48 periods. The value is kept across
+  epoch restarts. The restart gate for a missing neighbour waits for that
+  neighbour's stale window. A neighbour that never returns is still removed
+  and still triggers a restart.
+- Required properties, each with a test. Lossless runs and runs without any
+  false suspicion are identical to the runs without F9. A run under
+  Gilbert-Elliott loss that restarted until the time limit now ends. A node
+  that is really removed is still detected, within the cap.
+
+Acceptance on the calibration set of Amendment 5 (development instances only,
+loss ge:0.10:4, the same three arms, schedulers and channel seeds). F9 is
+accepted if at least 95 percent of the calibration runs end within the time
+limit with a cover that is valid on the discovered graph. The fixed stale
+windows of Amendment 5 (6, 12, 24, 48) are run on the same set as the
+comparison baseline, together with the default.
+
+Use in the blocks. If F9 is accepted it is part of the frozen protocol and is
+on in every block, and M6 additionally reports the Gilbert-Elliott conditions
+with F9 switched off, as the ablation. If F9 is not accepted, the profile rule
+of Amendment 5 applies and the failure of F9 is reported.
