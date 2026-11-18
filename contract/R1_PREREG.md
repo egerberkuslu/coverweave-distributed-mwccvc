@@ -388,3 +388,42 @@ run under F11 before the tag, to confirm that a run still ends within the
 time limit of the development sweep. If it does not, the push depth cap is
 lowered from the number of nodes to the largest value that does, and the cap
 is reported.
+
+### Amendment 9, 2026-11-18, before the frozen tag, before any held-out instance exists, and before any calibration run
+
+Source. An independent verification of the rewritten proofs against the code,
+on constructed development instances with a deterministic drop pattern. No
+held-out instance exists.
+
+Defects found.
+- Stale load at a closed node. A node whose barrier has closed neither beacons
+  nor expires records. If the forced load of a neighbour changes after that
+  and every HELLO of that neighbour on that link is lost, the closed node keeps
+  the old value, the network still becomes silent, and both ends of their
+  shared flexible edge own it while the verdict reads solved. Reproduced on two
+  constructed instances with 13 nodes and capacity 3.
+- Epoch disagreement at silence. In three constructed runs the network becomes
+  silent while nodes are in different epochs.
+- Reply cache. A duplicate of a request whose reply was evicted from the
+  bounded cache can be executed again (registered earlier as F14).
+
+Repairs, each bounded, each with a regression test built from the run that
+exposed it, each reverted and reported if it needs a redesign.
+- F15, confirmed state. A change of a node's role or forced load is not final
+  for ownership until every neighbour that shares a flexible edge with it has
+  confirmed the new value. The node is not done while a confirmation is
+  outstanding, and it repeats the announcement until it is confirmed. A node
+  whose barrier has closed reopens it when it learns a neighbour's new value.
+- F16, epoch agreement. A node does not finish while a neighbour it holds in
+  its frozen view advertises another epoch.
+- F14, as registered.
+
+Acceptance. The constructed runs end with no doubly owned edge and with every
+node in the same epoch, the lossless worked example keeps its cover and
+weight, and no development instance changes validity. The message cost of the
+confirmations is measured and reported.
+
+If F15 is dropped, the ownership theorem is stated with its condition in the
+statement, the stale-load execution is described in the manuscript as a known
+limitation with its probability under independent loss, and the validator's
+count of doubly owned edges is reported for every block.
