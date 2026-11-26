@@ -1,0 +1,32 @@
+session CoverWeave_Base in "." = Cook_Levin +
+  options [timeout = 3600]
+  theories
+    MWCCVC_Graph
+    MWCCVC_Language
+    MWCCVC_Verifier_Spec
+    MWCCVC_NP_Assembly
+    TM_Helpers
+
+session CoverWeave_Reduce in "reduce" = CoverWeave_Base +
+  options [timeout = 3600]
+  theories
+    TM_Occ
+    TM_Edges
+    TM_Reduce
+
+session CoverWeave_Verify in "verify" = CoverWeave_Base +
+  options [timeout = 900]
+  theories
+    TM_VFields
+    TM_VGrow
+    TM_VWeights
+    TM_VLoads
+    TM_VOwners
+    TM_VCert
+    TM_Verify
+
+session CoverWeave_NP in "final" = CoverWeave_Verify +
+  sessions
+    CoverWeave_Reduce
+  theories
+    MWCCVC_NP_Complete

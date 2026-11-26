@@ -58,6 +58,9 @@ After the main theorems each file runs `#print axioms`. Every result depends onl
 | Corollary 1, smallest captured instance | every connected instance the witness captures has `k ≥ 2`, `n ≥ 2k+3` and `m ≥ 2k²+2k+2`, so no connected instance with `n ≤ 6` is captured and the instance of Figure 7 is smallest in `n` and `m`. Connectivity is needed, as a captured disconnected instance with `n = 5` shows | `witnessCaptures_size_of_connected`, `no_witnessCaptures_of_card_le_six`, `witnessCaptures_G5` | `Exhaustive.lean` |
 | Theorem 1, size of the reductions | the set-cover gadget has `\|I\|+\|U\|+1` nodes and `\|I\|+Σ\|S_i\|` edges, so its size is at most three times the input size plus three, and the unit-weight map keeps the graph | `gadget_size`, `unitImage_size` | `ReductionSize.lean` |
 
+The first claim of Theorem 1, NP-completeness of the decision version, is machine-checked in Isabelle/HOL down
+to the Cook-Levin theorem; see [isabelle/](isabelle/README.md).
+
 ## What the checks found
 
 The Lean pass found defects in the submitted text and in the code. Each one is repaired in the revised
@@ -92,8 +95,8 @@ takes exactly `R+1` rounds, so "needs `R+1` rounds" in Proposition 2 is right as
 The paper proves no statement about the asynchronous scheduler, whose runs are only measured in Section V, so
 there is nothing to check for it. The written proofs remain the only support for the following.
 
-* The cited hardness results. Mathlib has no complexity classes, so NP-hardness itself is not formalized, only
-  the correctness of the reductions.
+* The cited hardness results beyond NP-completeness: planar and maximum-degree-4 hardness, APX and the set-cover
+  bound. NP-completeness itself is checked in Isabelle/HOL, see above.
 * Theorem 3(b).
 * Lemma 4 and Theorem 4 beyond Phase 1a. Phases 0 and 2 to 5, epochs and record expiry are not in the model.
 * The running time of the reduction maps in a step-count model. Their output sizes are checked, and each map
