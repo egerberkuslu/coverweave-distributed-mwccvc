@@ -107,7 +107,7 @@ from typing import Any, Dict, Optional, Sequence, Set, Tuple
 from ccvc.bb import wire
 from ccvc.bb.api import MsgType, Role, to_fp
 from ccvc.bb.bbcvc import PH_CONN, PH_COVER, PH_MIS, BbcvcNode, BbcvcParams, run_bbcvc
-from ccvc.bb.bootstrap import BootNeighbor
+from ccvc.bb.bootstrap import BootNeighbor, epoch_newer
 
 # Node states (GHS).
 SLEEPING, FIND, FOUND = 0, 1, 2
@@ -154,6 +154,7 @@ class V4MstDistNode(BbcvcNode):
         self.ghs_deferred: list = []           # (mtype, nid, level, frag, wfp)
         self.ghs_peer_deg: Dict[int, int] = {}  # heard from HELLO, not given
         self.ghs_halted = False
+        self._chk_init()
         # measurement, reported separately rather than folded into tx
         self.ghs_merges = 0
         self.ghs_rejects = 0
@@ -285,6 +286,7 @@ class V4MstDistNode(BbcvcNode):
                 self._ghs_test(now, edges)
             self._ghs_try_report(now, edges)
             self._ghs_reassert(now, edges)
+            self._chk_step(now)
         elif self.phase == PH_CONN:
             self._v4_mis_step(now, edges)
 
@@ -919,6 +921,167 @@ class V4MstDistNode(BbcvcNode):
 
     # ---------------------------------------------------------- termination
     def _ghs_halt(self, now: int, partner: Optional[int] = None) -> None:
+        """F1 (Amendment 16): the halt test only starts the certifying wave.
+
+        "best is infinite on both halves" certified, under loss after epoch
+        restarts, a fragment whose BRANCH marks were asymmetric, and the
+        backbone built on that forest was disconnected (M6, H2a, ge:0.05:4).
+        The core with the smaller id runs the wave; the other core halts on
+        its DONE flood like every other node.
+        """
+        if self.ghs_halted or (partner is not None and self.nid > partner):
+            return
+        if self._chk_id is not None and self._chk_parent is None:
+            return                       # my wave is still running
+        if now < self._chk_next_start_ms:
+            return                       # capped doubling after a cancel
+        self._chk_wave = (self._chk_wave + 1) & 0xFF
+        self._chk_partner = partner
+        self._log("halt_check_start", wave=self._chk_wave, level=self.ghs_level)
+        self._chk_join(now, (self.ghs_frag, self.ghs_level, self.nid,
+                             self._chk_wave), None)
+
+    # ------------------------------------------- F1 certified halt (echo)
+    def _chk_init(self) -> None:
+        self._chk_id: Optional[Tuple[int, int, int, int]] = None
+        self._chk_parent: Optional[int] = None
+        self._chk_partner: Optional[int] = None
+        self._chk_waiting: Set[int] = set()
+        self._chk_ok = False
+        self._chk_done = False
+        self._chk_wave = 0
+        self._chk_tries = 0
+        self._chk_cancels = 0
+        self._chk_next_ms = 0
+        self._chk_next_start_ms = 0
+        self._chk_joined_ms = 0
+
+    def _chk_backoff(self, tries: int) -> int:
+        return self.p.ack_timeout_ms * 2 ** min(max(tries, 1) - 1,
+                                                self.p.ack_max_attempts - 1)
+
+    def _chk_timeout_ms(self) -> int:
+        # A wave crosses at most n_bar - 1 tree edges, each within the longest
+        # backoff of a repeated request; no constant is tuned here.
+        nbar = self.p.n_bound or 0xFF
+        return nbar * self._chk_backoff(self.p.ack_max_attempts)
+
+    def _chk_wfp(self, ok: bool = False) -> int:
+        _, _, ini, wave = self._chk_id
+        return (ini << 9) | (wave << 1) | int(ok)
+
+    def _chk_local_ok(self) -> bool:
+        """Every BRANCH mark of mine is on a live edge and no edge is BASIC."""
+        live = {x.nid for x in self.nbrs.values() if x.is_edge}
+        if any(s == BRANCH and i not in live for i, s in self.ghs_edge.items()):
+            return False
+        return all(self.ghs_edge.get(i, BASIC) != BASIC for i in live)
+
+    def _chk_join(self, now: int, wid, parent: Optional[int]) -> None:
+        self._chk_id, self._chk_parent = wid, parent
+        self._chk_ok = self._chk_local_ok()
+        self._chk_done = False
+        self._chk_waiting = ({i for i, st in self.ghs_edge.items() if st == BRANCH}
+                             - {parent}) if self._chk_ok else set()
+        self._chk_tries = 0
+        self._chk_joined_ms = now
+        self._chk_send(now)
+        self._chk_check(now)
+
+    def _chk_send(self, now: int) -> None:
+        """(Re)send CHECK to the tree neighbours I still wait for (ProAsk backoff)."""
+        if not self._chk_waiting:
+            return
+        self._chk_tries += 1
+        self._chk_next_ms = now + self._chk_backoff(self._chk_tries)
+        frag, level, _, _ = self._chk_id
+        for i in sorted(self._chk_waiting):
+            x = self.nbrs.get(i)
+            if x is not None and x.is_edge:
+                self._ghs_send(x, MsgType.GHS_CHECK, level, frag, self._chk_wfp())
+
+    def _chk_answer(self, to: BootNeighbor, ok: bool) -> None:
+        frag, level, _, _ = self._chk_id
+        self._ghs_send(to, MsgType.GHS_CHECK_ACK, level, frag, self._chk_wfp(ok))
+
+    def _chk_check(self, now: int) -> None:
+        if self._chk_done or (self._chk_ok and self._chk_waiting):
+            return
+        self._chk_done = True
+        # an answer is about the fragment identity the wave was sent in
+        ok = self._chk_ok and self._chk_id[:2] == (self.ghs_frag, self.ghs_level)
+        if self._chk_parent is not None:
+            p = self.nbrs.get(self._chk_parent)
+            if p is not None:
+                self._chk_answer(p, ok)
+            return
+        if ok and self.ghs_state == FOUND and self.ghs_best_wt >= INF_W:
+            self._ghs_halt_now(now, self._chk_partner)
+        else:
+            self._chk_cancel(now, "nack")
+
+    def _chk_cancel(self, now: int, why: str) -> None:
+        self._log("halt_check_cancel", why=why, wave=self._chk_wave)
+        self._chk_cancels += 1
+        self._chk_next_start_ms = now + self._chk_backoff(self._chk_cancels)
+        self._chk_id = None
+        self._chk_waiting = set()
+
+    def _chk_step(self, now: int) -> None:
+        if self._chk_id is None or self._chk_done:
+            return
+        if now - self._chk_joined_ms > self._chk_timeout_ms():
+            if self._chk_parent is None:
+                self._chk_cancel(now, "timeout")
+            else:
+                self._chk_id = None      # stop repeating; the core restarts
+                self._chk_waiting = set()
+            return
+        if now >= self._chk_next_ms:
+            self._chk_send(now)
+
+    def _ghs_on_check(self, now: int, n: BootNeighbor, level: int, frag: int,
+                      wfp: int) -> None:
+        wid = (frag, level, wfp >> 9, (wfp >> 1) & 0xFF)
+        if wid == self._chk_id:
+            if n.nid == self._chk_parent:
+                if self._chk_done:       # my answer was lost: repeat it
+                    self._chk_answer(n, self._chk_ok and wid[:2] == (
+                        self.ghs_frag, self.ghs_level))
+                return
+            # a second tree path into me: the BRANCH marks close a cycle
+            self._ghs_send(n, MsgType.GHS_CHECK_ACK, level, frag, wfp & ~1)
+            if n.nid in self._chk_waiting:
+                self._chk_ok = False
+                self._chk_check(now)
+            return
+        cur = self._chk_id
+        if (cur is not None and cur[:3] == wid[:3]
+                and not epoch_newer(wid[3], cur[3])):
+            return                       # an older wave of the same core
+        if ((frag, level) != (self.ghs_frag, self.ghs_level)
+                or self.ghs_edge.get(n.nid) != BRANCH
+                or (cur is not None and self._chk_parent is None
+                    and not self._chk_done)):
+            # another fragment identity, an asymmetric mark, or a second wave
+            self._ghs_send(n, MsgType.GHS_CHECK_ACK, level, frag, wfp & ~1)
+            return
+        self._chk_join(now, wid, n.nid)
+
+    def _ghs_on_check_ack(self, now: int, n: BootNeighbor, level: int,
+                          frag: int, wfp: int) -> None:
+        if self._chk_id is None or self._chk_done:
+            return
+        if (frag, level, wfp >> 9, (wfp >> 1) & 0xFF) != self._chk_id:
+            return
+        if n.nid not in self._chk_waiting:
+            return
+        self._chk_waiting.discard(n.nid)
+        if not wfp & 1:
+            self._chk_ok = False
+        self._chk_check(now)
+
+    def _ghs_halt_now(self, now: int, partner: Optional[int] = None) -> None:
         if self.ghs_halted:
             return
         self.ghs_halted = True
@@ -1128,6 +1291,7 @@ class V4MstDistNode(BbcvcNode):
         self.ghs_deferred = []
         self._ghs_deferred_set = set()
         self.ghs_halted = False
+        self._chk_init()                 # F1: an epoch change cancels the halt
         self._v4_in_backbone = False
         self._v4_mis_claim = None
         self._v4_bb_members = set()
@@ -1143,7 +1307,8 @@ class V4MstDistNode(BbcvcNode):
     #: edge types only), so the sender's epoch is the one its HELLO announced.
     _V4_TYPES = _GHS_BLOCKING + (MsgType.GHS_ACCEPT, MsgType.GHS_REJECT,
                                  MsgType.GHS_CHANGE_ROOT, MsgType.DFS_DONE,
-                                 MsgType.BB_MIS)
+                                 MsgType.BB_MIS, MsgType.GHS_CHECK,
+                                 MsgType.GHS_CHECK_ACK)
 
     def _on_algo(self, now: int, src_mac: int, msg) -> None:
         peer = msg.src
@@ -1206,6 +1371,12 @@ class V4MstDistNode(BbcvcNode):
             self._ghs_on_report(now, n, msg.wfp, edges, msg.frag, msg.level)
         elif mt is MsgType.GHS_CHANGE_ROOT:
             self._ghs_on_change_root(now, n, edges, msg.level)
+        elif mt is MsgType.GHS_CHECK:
+            if self.phase == PH_MIS:
+                self._ghs_on_check(now, n, msg.level, msg.frag, msg.wfp)
+        elif mt is MsgType.GHS_CHECK_ACK:
+            if self.phase == PH_MIS:
+                self._ghs_on_check_ack(now, n, msg.level, msg.frag, msg.wfp)
         elif mt is MsgType.DFS_DONE:
             self._on_v4_done(now, n, msg)
         elif mt is MsgType.BB_MIS:

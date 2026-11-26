@@ -348,7 +348,7 @@ def test_an_epoch_restart_rewinds_the_ghs_latches():
     assert node._v4_mis_claim is None and node._v4_in_backbone is False
 
     node.phase = 1                           # PH_MIS, where the restart lands
-    node._ghs_halt(0)
+    node._ghs_halt_now(0)   # F1 (Amendment 16): the certified halt's last step
     assert node.phase == 2, "a halt after a restart must still leave PH_MIS"
 
 

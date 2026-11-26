@@ -1019,7 +1019,7 @@ def is_connected(nodes: Sequence[int], edges: Sequence[Edge]) -> bool:
 def _hello_sizes(n_mis: int) -> Set[int]:
     """Sınıra oturmuş HELLO'nun olabilecek boyları.
 
-    Anneal-Local HELLO'ya 8 baytlık bir kuyruk takıyor, dolayısıyla "sınırdaki
+    Anneal-Local HELLO'ya 10 baytlık bir kuyruk takıyor, dolayısıyla "sınırdaki
     HELLO" tek bir sayı değil; iki biçim de sansür işareti sayılır.
     """
     from ccvc.bb import wire

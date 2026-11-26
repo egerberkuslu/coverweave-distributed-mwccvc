@@ -61,6 +61,10 @@ def _one_of_each():
         # R1 repair F17: the certificate wave rides on the edge body.
         MsgType.CERT: wire.EdgeMsg(MsgType.CERT, 32, 17, 0, 0, epoch=3),
         MsgType.CERT_ACK: wire.EdgeMsg(MsgType.CERT_ACK, 33, 17, 300, 800, epoch=3),
+        # Amendment 16, F1: the certified halt's echo rides on the GHS body.
+        MsgType.GHS_CHECK: wire.Ghs(MsgType.GHS_CHECK, 34, 526, 2, 7, (3 << 9) | 2),
+        MsgType.GHS_CHECK_ACK: wire.Ghs(MsgType.GHS_CHECK_ACK, 35, 527, 2, 7,
+                                        (3 << 9) | 3),
     }
 
 
@@ -128,7 +132,8 @@ def test_all_types_fit_in_250_bytes():
 def test_sizes_table():
     s = wire.sizes()
     assert s == {"HELLO_min": 13, "HELLO_max": 23,
-                 "HELLO_anneal_min": 21, "HELLO_anneal_max": 31,
+                 # Amendment 16 (T1, T2): the ANNEAL tail gains hops + flag, 8 -> 10
+                 "HELLO_anneal_min": 23, "HELLO_anneal_max": 33,
                  "LINK": 5, "LINK_ACK": 5,
                  # R1 repair F3: JOIN, JOIN_ACK and the edge types carry the
                  # sender's epoch byte (6 -> 7 and 10 -> 11); BB_MIS does not.
@@ -145,7 +150,9 @@ def test_sizes_table():
                  # R1 repair F12b: GHS_REPORT carries the certificate sums
                  # (min(deg, k), deg, node count; 10 B), so 15 -> 25.
                  "GHS_ACCEPT": 15, "GHS_REJECT": 15, "GHS_REPORT": 25,
-                 "GHS_CHANGE_ROOT": 15}
+                 "GHS_CHANGE_ROOT": 15,
+                 # Amendment 16 (F1): the certified halt's echo, GHS body
+                 "GHS_CHECK": 15, "GHS_CHECK_ACK": 15}
 
 
 def test_oversize_hello_raises_not_truncates():
@@ -235,19 +242,24 @@ def test_no_other_field_can_be_silently_coerced():
 # --------------------------------------------------------------------------
 # The ANNEAL tail (brief section 6.5): OPTIONAL and backward compatible
 # --------------------------------------------------------------------------
-def test_anneal_tail_round_trips_and_costs_exactly_eight_bytes():
-    """.tex §13: HELLO gains x, ell, label+counter, token and T, for +8 B."""
+def test_anneal_tail_round_trips_and_costs_exactly_ten_bytes():
+    """.tex §13: HELLO gains x, ell, label+counter, token and T, for +8 B;
+    Amendment 16 adds the label's hop count and the bridge flag, +2 B."""
     a = wire.Anneal(x=True, ell_fp=int(2.5 * 256), label=2, label_ctr=9,
-                    token=41234, cool=46)
+                    token=41234, cool=46, hops=wire.HOPS_MAX, bridge=True)
     h = wire.Hello(src=7, key=100, deg=3, role=Role.COVER, phase=3, load=1,
                    mis_nbrs=(1, 2), anneal=a)
     raw = wire.encode(h)
     assert wire.decode(raw) == h
     bare = wire.encode(wire.Hello(src=7, key=100, deg=3, role=Role.COVER,
                                   phase=3, load=1, mis_nbrs=(1, 2)))
-    assert len(raw) - len(bare) == wire.ANNEAL_BYTES == 8
-    assert wire.hello_size(0, anneal=True) == 21
-    assert wire.hello_size(5, anneal=True) == 31      # .tex "toplam ~32 B"
+    assert len(raw) - len(bare) == wire.ANNEAL_BYTES == 10
+    assert wire.hello_size(0, anneal=True) == 23
+    assert wire.hello_size(5, anneal=True) == 33      # .tex "toplam ~32 B"
+    with pytest.raises(ValueError):
+        wire.encode(wire.Hello(src=1, key=1, deg=0, role=Role.OUT, phase=0, load=0,
+                               anneal=wire.Anneal(True, 0, 1, 0, 0, 0,
+                                                  hops=wire.HOPS_MAX + 1)))
 
 
 def test_anneal_tail_is_optional_and_bare_hello_is_unchanged():
@@ -263,7 +275,7 @@ def test_anneal_tail_size_is_independent_of_degree():
     sizes = {len(wire.encode(wire.Hello(src=1, key=7, deg=d, role=Role.OUT,
                                         phase=0, load=0, anneal=a)))
              for d in (0, 1, 8, 64, 255)}
-    assert sizes == {21}
+    assert sizes == {23}
 
 
 def test_cooling_index_is_carried_exactly_not_quantised():
@@ -291,11 +303,11 @@ def test_x_flag_and_cooling_index_share_a_byte_without_collision():
 
 
 def test_a_hello_with_a_malformed_tail_is_rejected():
-    """The tail is either absent or exactly 8 B. No length in between may be
+    """The tail is either absent or exactly 10 B. No length in between may be
     swallowed silently."""
     raw = wire.encode(wire.Hello(src=1, key=1, deg=0, role=Role.OUT, phase=0,
                                  load=0, anneal=wire.Anneal(True, 0, 1, 0, 0)))
-    for cut in (1, 3, 7):
+    for cut in (1, 3, 7, 9):
         with pytest.raises(ValueError):
             wire.decode(raw[:-cut])
     with pytest.raises(ValueError):
@@ -305,8 +317,8 @@ def test_a_hello_with_a_malformed_tail_is_rejected():
 def test_anneal_fields_reject_silent_coercion_too():
     """The same discipline applies in the tail: a float is never coerced silently."""
     base = dict(src=1, key=1, deg=0, role=Role.OUT, phase=0, load=0)
-    for field in ("ell_fp", "label", "label_ctr", "token", "cool"):
-        kw = dict(x=True, ell_fp=0, label=1, label_ctr=0, token=0, cool=0)
+    for field in ("ell_fp", "label", "label_ctr", "token", "cool", "hops"):
+        kw = dict(x=True, ell_fp=0, label=1, label_ctr=0, token=0, cool=0, hops=0)
         kw[field] = 2.5
         with pytest.raises((TypeError, ValueError, struct.error)):
             wire.encode(wire.Hello(anneal=wire.Anneal(**kw), **base))

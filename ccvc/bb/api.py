@@ -100,6 +100,11 @@ class MsgType(IntEnum):
     #: of min(deg, k) and sum of deg in `u` and `v`.
     CERT = 26
     CERT_ACK = 27
+    #: R1-repair F1 (Amendment 16): FabricTree's halt certificate, an echo
+    #: over the core's branch tree. Both use the GHS body; `wfp` carries the
+    #: wave identity (initiator, wave number) and, in CHECK_ACK, the verdict.
+    GHS_CHECK = 28
+    GHS_CHECK_ACK = 29
 
 
 # --------------------------------------------------------------------------

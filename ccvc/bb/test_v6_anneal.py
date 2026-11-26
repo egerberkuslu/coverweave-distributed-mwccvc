@@ -328,8 +328,8 @@ def test_an_invalid_final_state_is_exactly_when_the_flag_can_fire():
         kancası orada yaşıyor ve düz `AnnealNode` hiç örneklenmezdi.
         """
 
-        def _maybe_freeze(self, now, changed):
-            super()._maybe_freeze(now, changed)
+        def _maybe_freeze(self, now, changed, *peers):   # Amendment 16: + peers
+            super()._maybe_freeze(now, changed, *peers)
             if self.frozen:
                 self.x, self.role = 0, Role.OUT
 
@@ -370,8 +370,8 @@ def test_verdict_is_not_derived_from_validity():
     from ccvc.bb.api import Role
 
     class Emptying(v6_anneal._TracedAnnealNode):
-        def _maybe_freeze(self, now, changed):
-            super()._maybe_freeze(now, changed)
+        def _maybe_freeze(self, now, changed, *peers):   # Amendment 16: + peers
+            super()._maybe_freeze(now, changed, *peers)
             if self.frozen:
                 self.x, self.role = 0, Role.OUT
 

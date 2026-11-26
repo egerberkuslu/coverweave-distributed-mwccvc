@@ -799,10 +799,10 @@ def test_hello_stays_small_and_density_independent():
     """.tex §13.4: ANNEAL HELLO'su ≈32 B ve yoğunluktan bağımsız olmalı."""
     out, _, _ = run("sync", seed=0)
     assert out.totals().max_payload <= wire.hello_size(AnnealParams().mis_nbrs_max,
-                                                       anneal=True) == 31
+                                                       anneal=True) == 33
     # ANNEAL hiç MIS rolü üretmez, dolayısıyla mis_nbrs alanı hep boştur
     # Amendment 13, G2(c): plus the bounded confirmation echo, still constant
-    assert wire.hello_size(0, anneal=True) == 21
+    assert wire.hello_size(0, anneal=True) == 23   # Amendment 16: +2 B tail
     assert out.totals().max_payload <= wire.hello_size(0, anneal=True, echo=wire.ECHO_MAX)
 
 

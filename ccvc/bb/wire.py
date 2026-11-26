@@ -51,10 +51,10 @@ THE 250 B CEILING IS SELF-IMPOSED AND IT NEVER BINDS.
   and because a design that also fits constrained hardware is a feature. It is
   a declared choice, not a necessity.
 
-  It also never binds. The largest message any arm emits is 31 B (HELLO with
+  It also never binds. The largest message any arm emits is 33 B (HELLO with
   the ANNEAL tail and five mis_nbrs); at the sweep's mis_nbrs_max=32 a HELLO is
-  77 B. A full neighbour list would fit 118 ids under 250 and 729 under 1472,
-  against a measured maximum degree of 17 in the benchmark. The neighbour table
+  79 B (both with the 10 B ANNEAL tail of R1-repair). A full neighbour list
+  would fit 118 ids under 250 and 729 under 1472, against a measured maximum degree of 17 in the benchmark. The neighbour table
   cap fills long before the payload ceiling is reached.
 
 KEY REPRESENTATION
@@ -97,7 +97,7 @@ MIS_NBRS_SOFT_MAX = 5
 #: with one entry five took longer (sync: +6 and +12 slots), with two none did.
 ECHO_MAX = 2
 
-# ANNEAL block (brief section 6.5 / .tex section 13): an OPTIONAL 8-byte tail
+# ANNEAL block (brief section 6.5 / .tex section 13): an OPTIONAL 10-byte tail
 # appended to a HELLO. A bare HELLO stays 13 B, so BB-CVC and bootstrap are
 # untouched; the block is attached only on Anneal-Local runs.
 #   flags(1): bit0 = x (in the cover), bits 1..7 = cooling step index j
@@ -106,9 +106,14 @@ ECHO_MAX = 2
 #   ell(2)  : fractional load, 8.8 fixed point (brief section 3.6)
 #   label(2), label_ctr(1) : Loop C component label + staleness counter
 #   token(2): Loop A local-exclusion token
-_ANNEAL = struct.Struct("<BHHBH")
-ANNEAL_BYTES = _ANNEAL.size          # 8
+#   hops(2) : R1-repair T1, the label's hop count (bits 0..14); bit 15 is T2's
+#             flag "an OUT node that sees two or more labels among its cover
+#             neighbours" (Amendment 16)
+_ANNEAL = struct.Struct("<BHHBHH")
+ANNEAL_BYTES = _ANNEAL.size          # 10
 COOL_MAX = 0x7F                      # largest j that fits the 7 bits of flags
+HOPS_MAX = 0x7FFF                    # largest hop count that fits beside the T2 flag
+_ANNEAL_BRIDGE = 0x8000
 
 # header: type(1) + src(2)
 _HDR = struct.Struct("<BH")
@@ -175,6 +180,8 @@ class Anneal:
     label_ctr: int
     token: int
     cool: int = 0            # cooling step j, T = T0 * alpha**j
+    hops: int = 0            # T1: hop count of `label`
+    bridge: bool = False     # T2: OUT and two or more labels among cover neighbours
 
 
 @dataclass
@@ -367,7 +374,8 @@ _HELLO_ECHO = 0x10
 _HELLO_FLAGS = _HELLO_BARRIER_OPEN | _HELLO_INFEASIBLE | _HELLO_CONFIRM | _HELLO_ECHO
 _GHS_TYPES = (MsgType.GHS_CONNECT, MsgType.GHS_INITIATE, MsgType.GHS_TEST,
               MsgType.GHS_ACCEPT, MsgType.GHS_REJECT, MsgType.GHS_REPORT,
-              MsgType.GHS_CHANGE_ROOT)
+              MsgType.GHS_CHANGE_ROOT, MsgType.GHS_CHECK,
+              MsgType.GHS_CHECK_ACK)   # F1 (Amendment 16) reuses the GHS body
 #: seq(2) + level(2) + frag(4) + wfp(4) = 12 B of body, 15 B on the wire.
 #:
 #: `frag` IS FOUR BYTES ON PURPOSE. GHS identifies a fragment by the weight of
@@ -510,9 +518,13 @@ def _encode_hello(msg: Hello) -> bytes:
         if not 0 <= ell <= 0xFFFF:
             raise ValueError(f"anneal.ell_fp is outside the 8.8 range: {ell}")
         flags = (1 if a.x else 0) | (cool << 1)
+        hops = _exact_int(a.hops, "anneal.hops")
+        if not 0 <= hops <= HOPS_MAX:
+            raise ValueError(f"anneal.hops does not fit 15 bits: {hops}")
         out += _ANNEAL.pack(flags, ell, _exact_int(a.label, "anneal.label"),
                             _exact_int(a.label_ctr, "anneal.label_ctr"),
-                            _exact_int(a.token, "anneal.token"))
+                            _exact_int(a.token, "anneal.token"),
+                            hops | (_ANNEAL_BRIDGE if a.bridge else 0))
     _guard(len(out), MsgType.HELLO)
     return out
 
@@ -564,9 +576,10 @@ def decode(payload: bytes) -> Message:
         mis = struct.unpack_from(f"<{n}H", payload, off)
         ann = None
         if extra:
-            flags, ell, label, lctr, token = _ANNEAL.unpack_from(payload, need)
+            flags, ell, label, lctr, token, hb = _ANNEAL.unpack_from(payload, need)
             ann = Anneal(x=bool(flags & 1), ell_fp=ell, label=label,
-                         label_ctr=lctr, token=token, cool=flags >> 1)
+                         label_ctr=lctr, token=token, cool=flags >> 1,
+                         hops=hb & HOPS_MAX, bridge=bool(hb & _ANNEAL_BRIDGE))
         return Hello(src=src, key=None if key == KEY_NONE else key, deg=deg,
                      role=Role(role & ~_HELLO_FLAGS),
                      phase=phase, load=load,
@@ -661,6 +674,8 @@ def sizes() -> Dict[str, int]:
         "GHS_REJECT": len(encode(Ghs(MsgType.GHS_REJECT, 1, 0, 0, 1, 0))),
         "GHS_REPORT": len(encode(Ghs(MsgType.GHS_REPORT, 1, 0, 0, 1, 7))),
         "GHS_CHANGE_ROOT": len(encode(Ghs(MsgType.GHS_CHANGE_ROOT, 1, 0, 0, 1, 0))),
+        "GHS_CHECK": len(encode(Ghs(MsgType.GHS_CHECK, 1, 0, 0, 1, 0))),
+        "GHS_CHECK_ACK": len(encode(Ghs(MsgType.GHS_CHECK_ACK, 1, 0, 0, 1, 0))),
     }
 
 

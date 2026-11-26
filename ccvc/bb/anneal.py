@@ -211,6 +211,8 @@ class PeerState:
     token: int
     cool: int
     heard_ms: int
+    hops: int = 0          # T1: hop count of `label`
+    bridge: bool = False   # T2: OUT and two or more labels among its cover neighbours
 
 
 class AnnealNode(BbcvcNode):
@@ -259,6 +261,8 @@ class AnnealNode(BbcvcNode):
         self.peer: Dict[int, PeerState] = {}
         self.label = 0                       # nid bilinince kurulur
         self.label_ctr = 0
+        self.label_hops = 0                  # T1 (Amendment 16)
+        self._bridge = False                 # T2: advertised obligation flag
         self._label_src_ctr: Optional[int] = None
         self._label_fresh_ms = 0
         #: A dropped label and the highest counter seen for it at the moment it
@@ -340,7 +344,9 @@ class AnnealNode(BbcvcNode):
     def _anneal_block(self) -> wire.Anneal:
         return wire.Anneal(x=bool(self.x), ell_fp=min(self._adv_ell_fp, ELL_MAX_FP),
                            label=self.label or self.nid, label_ctr=self.label_ctr,
-                           token=self.token, cool=self.cool_index)
+                           token=self.token, cool=self.cool_index,
+                           hops=min(self.label_hops, wire.HOPS_MAX),
+                           bridge=self._bridge)
 
     def _hello_payload(self, mis_nbrs: Tuple[int, ...] = ()) -> bytes:
         """Keep bootstrap's PRODUCER-side checks (G8, deg, key type) exactly as
@@ -366,7 +372,8 @@ class AnnealNode(BbcvcNode):
             self._last_seen_flip[h.src] = True
         self.peer[h.src] = PeerState(x=a.x, ell_fp=a.ell_fp, label=a.label,
                                      label_ctr=a.label_ctr, token=a.token,
-                                     cool=a.cool, heard_ms=now)
+                                     cool=a.cool, heard_ms=now, hops=a.hops,
+                                     bridge=a.bridge)
 
     def _send_join(self, now: int, n: BootNeighbor, code: int) -> None:
         if code == JOIN_ESCALATE:
@@ -396,6 +403,11 @@ class AnnealNode(BbcvcNode):
         # freezes behind reality and a disconnection becomes INVISIBLE (see the
         # note below).
         self._loop_c(now, self._peers(nb))
+        # T2 (Amendment 16): a frozen OUT node that sees two labels still joins;
+        # a join of an OUT node with a cover neighbour keeps the cover connected.
+        self._bridge = self._bridge_obliged(self._peers(nb))
+        if self._bridge:
+            self._join_frozen(self._peers(nb))
 
         # PHASE 3'S REPAIR, WHICH THE ANNEALER USED TO JUMP STRAIGHT OVER.
         # The freeze sets `phase = PH_OWN`, so PH_FORCED is never occupied and
@@ -415,7 +427,7 @@ class AnnealNode(BbcvcNode):
         self.periods += 1
 
         self._loop_b(peers)               # denge
-        self._loop_c(now, peers)          # etiket
+        label_moved = self._loop_c(now, peers)   # etiket; T1: (label, hops)
         self._observe_violation(peers)
 
         token_prev = self.token
@@ -426,7 +438,10 @@ class AnnealNode(BbcvcNode):
             flipped = self._loop_a(peers)
         # A descent step I COULD NOT TAKE because I lost the token is also a
         # "change pending" state; it resets the quiescence counter below.
-        pending = (not flipped) and self._delta_e(self._peers(nb)) < 0
+        # T2: a bridge obligation is pending whatever the energy change.
+        pending = (not flipped) and (self._delta_e(self._peers(nb)) < 0
+                                     or self._bridge_obliged(self._peers(nb)))
+        self._bridge = self._bridge_obliged(self._peers(nb))
 
         # The advertised ell that Phase 4 reads is refreshed IMMEDIATELY before
         # the HELLO goes out
@@ -437,6 +452,11 @@ class AnnealNode(BbcvcNode):
         nbr_flip = any(self._last_seen_flip.values())
         self._last_seen_flip.clear()
         self._trickle(flipped or nbr_flip)
+        # T1 (Amendment 16) now adds `label_moved`, a change of (label, hops),
+        # to the quiescence counter. The earlier attempt below failed on the
+        # since-fixed repay bug; the hop bound makes a dead label die in
+        # bounded time, so the label stops moving once the cover does.
+        #
         # TRIED AND REVERTED: adding `label_moved` to the quiescence counter.
         # The idea was that a node whose component label is still moving has not
         # gone quiet. It MEASURABLY MADE THINGS WORSE: on n50_m100 seed 3 async
@@ -445,7 +465,8 @@ class AnnealNode(BbcvcNode):
         # (see `_loop_a`), so gating the freeze on the label let that one node
         # hold the whole run open. The label not converging is a SYMPTOM of the
         # oscillation, not its cause, and freezing on it treats the symptom.
-        self._maybe_freeze(now, flipped or nbr_flip or pending)
+        self._maybe_freeze(now, flipped or nbr_flip or pending or label_moved,
+                           self._peers(nb))
 
     # ------------------------------------------------------- Loop A: the flip
     def _holds_token(self, now: int, peers, mine: int) -> bool:
@@ -579,6 +600,7 @@ class AnnealNode(BbcvcNode):
         self.x = 1
         self.role = Role.COVER
         self.y = {}
+        self._bridge = False
 
     def _bridge_discount(self, peers) -> float:
         """What joining right now would discount me, as a debt to record.
@@ -589,6 +611,21 @@ class AnnealNode(BbcvcNode):
         """
         labels = {ps.label for _, ps in peers if ps.x}
         return self.p.lam_b * (len(labels) - 1) if len(labels) > 1 else 0.0
+
+    def _bridge_obliged(self, peers) -> bool:
+        """T2 (Amendment 16): am I OUT with two or more labels among my cover
+        neighbours? V \\ C is independent when C covers, so C is connected
+        exactly when no OUT node touches two cover components."""
+        return not self.x and len({ps.label for _, ps in peers if ps.x}) > 1
+
+    def _join_frozen(self, peers) -> None:
+        """Join after the freeze, rebuilding the anneal state as `_loop_a` does."""
+        self.x = 1
+        self.role = Role.COVER
+        self._bridge = False
+        self.y = {n.nid: Y_ONE // 2 for n, ps in peers if ps.x}
+        self._adv_ell_fp = f2fp(self._ell(peers))
+        self._touch()
 
     def _loop_a(self, peers) -> bool:
         """Metropolis. At T <= T_min no UPHILL step remains, but DESCENT CONTINUES.
@@ -610,8 +647,8 @@ class AnnealNode(BbcvcNode):
         """
         d = self._delta_e(peers)
         t = self.temperature
-        if d < 0:
-            accept = True
+        if d < 0 or self._bridge_obliged(peers):
+            accept = True                # T2: the bridge join is never refused
         elif t <= self.p.t_min_temp:
             accept = False               # zero temperature: descent only
         else:
@@ -716,43 +753,55 @@ class AnnealNode(BbcvcNode):
         one byte and therefore wraps, so the comparison goes through
         `epoch_newer`.
         """
-        # ONLY THE LABEL, NOT THE COUNTER. The root advances its counter every
-        # single period as a heartbeat, so comparing the counter too would make
-        # every root permanently non-quiescent and no run would ever freeze.
-        before = self.label
+        # ONLY THE LABEL AND ITS HOPS, NOT THE COUNTER. The root advances its
+        # counter every single period as a heartbeat, so comparing the counter
+        # too would make every root permanently non-quiescent and no run would
+        # ever freeze. T1 (Amendment 16): the hop count is the distance to the
+        # label's root along cover nodes; a dead label's hops rise every period
+        # (count to infinity), so it keeps its holders non-quiet until it
+        # exceeds the node bound n_bar and dies.
+        before = (self.label, self.label_hops)
+        nbar = min(self.p.n_bound or wire.HOPS_MAX, wire.HOPS_MAX)
         if not self.x:
-            self.label, self.label_ctr = self.nid, 0
+            self.label, self.label_ctr, self.label_hops = self.nid, 0, 0
             self._label_src_ctr = None
-            return before != self.label
+            return before != (self.label, self.label_hops)
 
         best = self.nid
         best_ctr: Optional[int] = None
+        best_hops = 0
         for _, ps in peers:
             if not ps.x:
                 continue                       # a node outside the cover has no label
             if self._is_stale(ps.label, ps.label_ctr):
                 continue                       # dead label: I do not re-adopt it
+            if ps.hops + 1 > nbar:
+                continue                       # T1: dead whatever the heartbeat says
             if ps.label < best:
-                best, best_ctr = ps.label, ps.label_ctr
+                best, best_ctr, best_hops = ps.label, ps.label_ctr, ps.hops + 1
             elif ps.label == best and best_ctr is not None:
                 # same label, take the counter that is further along the wave
                 if epoch_newer(ps.label_ctr, best_ctr):
                     best_ctr = ps.label_ctr
+                best_hops = min(best_hops, ps.hops + 1)
 
         if best == self.nid:
             # I am the root of my own component: I advance the counter
             self.label = self.nid
             self.label_ctr = (self.label_ctr + 1) & 0xFF
+            self.label_hops = 0
             self._label_src_ctr = None
             self._label_fresh_ms = now
-            return before != self.label
+            return before != (self.label, self.label_hops)
 
         if best != self.label:
             self.label, self.label_ctr = best, best_ctr or 0
+            self.label_hops = best_hops
             self._label_src_ctr = best_ctr
             self._label_fresh_ms = now          # new label: the clock resets
             return True
 
+        self.label_hops = best_hops
         if best_ctr is not None and (self._label_src_ctr is None
                                      or epoch_newer(best_ctr, self._label_src_ctr)):
             self._label_src_ctr = best_ctr      # the counter GENUINELY advanced
@@ -763,10 +812,10 @@ class AnnealNode(BbcvcNode):
             # remember it as dead
             self._stale_label = self.label
             self._stale_ctr = self._label_src_ctr or 0
-            self.label, self.label_ctr = self.nid, 0
+            self.label, self.label_ctr, self.label_hops = self.nid, 0, 0
             self._label_src_ctr = None
             self._label_fresh_ms = now
-        return before != self.label
+        return before != (self.label, self.label_hops)
 
     def _is_stale(self, label: int, ctr: int) -> bool:
         """Is this the label I killed, and is its root still silent?
@@ -797,7 +846,7 @@ class AnnealNode(BbcvcNode):
         else:
             self._t_hello_cur = min(2 * self._t_hello_cur, self.p.t_hello_max_ms)
 
-    def _maybe_freeze(self, now: int, changed: bool) -> None:
+    def _maybe_freeze(self, now: int, changed: bool, peers=()) -> None:
         """.tex: T <= T_min AND no flip in the neighbourhood for T_q -> freeze.
 
         "NO FLIP" IS NOT ENOUGH; "NOBODY WANTS TO FLIP" IS WHAT IS NEEDED. Token
@@ -827,6 +876,8 @@ class AnnealNode(BbcvcNode):
             return
         if self._quiet_periods < self.p.flip_quiet_periods:
             return
+        if any(not ps.x and ps.bridge for _, ps in peers):
+            return                       # T2: an OUT neighbour still sees two labels
         self.frozen = True
         self.frozen_ms = now
         self.phase = PH_OWN
