@@ -227,6 +227,29 @@ Every number in the revised manuscript comes from one code version.
 
 The exact step list is in [docs/REPRODUCE.md](docs/REPRODUCE.md).
 
+The registered variant R1-repair of the revision (Amendment 16, fingerprint
+`aedb4a3287bc`) is marked by the tag `coverweave-r1-repair`. The reserve-set
+results of R1-repair in the paper come from that tag.
+
+One correction was made after the freeze. A Lean model of the message handlers
+showed that the late-acknowledgement path of `ccvc/bb/bbcvc.py` did not apply the
+`θ` check of `OnAck`, so a delayed copy of an acknowledgement for an earlier offer
+could release an edge that had since come back. The branch `main` applies the check
+on that path too and adds the regression test
+`test_a_stale_copy_of_an_old_ack_does_not_release_a_reacquired_edge`. The change
+alters the fingerprint, so the reported numbers are reproduced from the tags. No
+run behind them that ended solved has an ownership violation or a doubly claimed
+edge.
+
+## Machine-checked proofs
+
+[formal/](formal/README.md) holds Lean 4 proofs of the guarantees in Section IV of
+the paper: the graph cores of the theorems and lemmas, the running times of
+Theorem 1, and an execution model of Phases 1a and 1b on which the round count, the
+duplicate-request lemma, the loss-free window and termination of Phase 1a are
+proven. The README there maps every statement to its Lean theorem, lists what the
+checks found and what they do not cover, and gives the build steps.
+
 ## Results
 
 > Results of the frozen version are added here when the pre-registered runs finish.
@@ -257,6 +280,7 @@ measured Mininet-WiFi energy.
 │   ├── REPRODUCE.md       step list for the paper
 │   ├── figures/           figures of this page
 │   └── brand/             logo
+├── formal/                Lean 4 proofs of Section IV, see formal/README.md
 ├── results/               measurements of the submitted version, see results/README.md
 └── tools/fetch_dagdeviren.py   dataset fetcher
 ```

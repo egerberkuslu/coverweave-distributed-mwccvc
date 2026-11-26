@@ -1,0 +1,10 @@
+name = "CoverWeaveFormal"
+version = "0.1.0"
+defaultTargets = ["SwarmInferLean"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+
+[[lean_lib]]
+name = "SwarmInferLean"

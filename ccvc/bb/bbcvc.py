@@ -504,6 +504,10 @@ class BbcvcNode(BootstrapNode):
         self._offered: Set[Edge] = set()
         #: Edge -> how many times I have taken it. See `Pending.e_take`.
         self._takes: Dict[Edge, int] = {}
+        #: Edge -> the last seq I had issued when I last took it. A late ACK of a
+        #: request at or below it answers an offer made before the edge came back,
+        #: the theta check of OnAck for `_on_late_ack` (see `_accept_edge`).
+        self._retake_seq: Dict[Edge, int] = {}
         #: G7 (Amendment 13): edge -> completed transfers of it that I took part
         #: in, as receiver (accept) or as sender (release on the answer). Both
         #: ends agree once a transfer completes, so a request that carries an
@@ -2372,6 +2376,7 @@ class BbcvcNode(BootstrapNode):
         """
         self._offered.discard(e)
         self._takes[e] = self._takes.get(e, 0) + 1
+        self._retake_seq[e] = self._seq
         if self._explicit.get(e) is True:
             return True
         if e in self.owned:
@@ -2543,6 +2548,16 @@ class BbcvcNode(BootstrapNode):
             # seed 3, (1,16) and (1,17) in seed 1. Both ends agreed on epoch,
             # key and load, so the tie-break was not at fault; the release was.
             self._log("stale_ack_ignored", peer=n.nid, edge=e)
+            return
+        floor = self._retake_seq.get(e)
+        if floor is not None and not 0 < ((msg.seq - floor) & 0xFFFF) < 0x8000:
+            # AN ACK OF AN OFFER MADE BEFORE I TOOK THE EDGE BACK. Found by the Lean
+            # model of the handlers (formal/.../ExecRequests.lean, `code_late_ack_twice`):
+            # offer, the ACK releases the edge, the edge comes back, it is offered
+            # again, and a delayed copy of the first ACK released it a second time.
+            # `_resolve` refuses that case through `e_take`, the theta check of
+            # OnAck; this is the same check on the late path.
+            self._log("stale_late_ack_ignored", peer=n.nid, edge=e)
             return
         self._log("late_ack_release", peer=n.nid, edge=e)
         self._release_edge(e)
@@ -2823,6 +2838,7 @@ def state_bytes(node: BbcvcNode) -> int:
     b += _WI * len(node._adv_mis)
     b += _WE * len(node.owned) + (_WE + _WF) * (len(node._explicit) + len(node._takes))
     b += _WE * len(node._offered)
+    b += (_WE + _WI) * len(node._retake_seq)
     b += sum(2 * _WI + _WF + _WE + 3 * _WF + _WT + len(p.payload)
              for p in node._pending.values())
     b += sum(_WI + _WF + _WI + len(r) for c in node._seen.values() for r in c.values())

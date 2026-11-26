@@ -2274,3 +2274,45 @@ def test_a_degree_deficient_run_is_infeasible_not_unresolved():
     assert degree_deficiency_infeasible([2, 2, 2], 3, 1) is False
     # An isolated node cannot help any edge: capacity drops below m.
     assert degree_deficiency_infeasible([2, 2, 2, 0], 4, 1) is True
+
+
+def test_a_stale_copy_of_an_old_ack_does_not_release_a_reacquired_edge():
+    """LEAN İLE BULUNAN HATA: eski bir ACK'in gecikmiş kopyası, geri alınmış kenarı bıraktırıyordu.
+
+    Sıra (formal/SwarmInferLean/CoverWeave/ExecRequests.lean, `code_late_ack_twice`):
+    kenarı devret, ACK zamanında gelir ve kenar bırakılır, kenar geri alınır,
+    yeniden devredilir, ilk ACK'in gecikmiş bir kopyası gelir. O kopyanın isteği
+    artık beklemede olmadığından `_on_late_ack`'e düşer, kenar yeniden teklif
+    edildiği için `_offered` denetimini geçer ve kenarı İKİNCİ KEZ bırakırdı.
+    Yeni teklifin alıcısı reddederse kenar sahipsiz kalır.
+
+    Makaledeki `OnAck` bunu θ(e) sayacıyla engeller ve `_resolve` de
+    `e_take` ile aynısını yapar. Geç ACK yolunda bu denetim yoktu.
+    """
+    ids = sorted(WEIGHTS)
+    net = simnet.SimNet(ids, EDGES, macs=bbcvc.macs_for(ids), rssi_range=None)
+    node = bbcvc.build_nodes(net, WEIGHTS, K, BbcvcParams())[2]
+    e = bbcvc.edge(2, 4)
+    node.owned = {e}
+    node._explicit[e] = True
+    nbr = bbcvc.BootNeighbor(nid=4, mac=2, last_ms=0)
+    nbr.key = 10
+    node.nbrs[4] = nbr
+
+    node._send_edge_msg(0, nbr, MsgType.HANDOVER, e, 0, "test")
+    (_, s1), = node._pending
+    node._on_ack(0, 4, s1, ok=True)                # the ACK arrives in time
+    assert e not in node.owned, "zamanında gelen ACK kenarı bıraktırmadı"
+
+    assert node._accept_edge(e)                    # the edge comes back
+    assert e in node.owned
+    node._send_edge_msg(0, nbr, MsgType.HANDOVER, e, 0, "test")   # offered again
+    (_, s2), = node._pending
+    assert s2 != s1
+
+    node._on_late_ack(0, nbr, wire.EdgeMsg(MsgType.HANDOVER_ACK, 4, s1, e[0], e[1]))
+    assert e in node.owned, (
+        "eski isteğin ACK kopyası geri alınmış kenarı yeniden bıraktırdı")
+
+    node._on_ack(0, 4, s2, ok=True)                # the answer to the new offer still counts
+    assert e not in node.owned
