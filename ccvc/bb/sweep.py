@@ -48,18 +48,33 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 import csv
+import dataclasses
+import functools
 import json
 import math
 import os
 import statistics
 import sys
 import time
+from types import SimpleNamespace
 from dataclasses import asdict, dataclass
 from dataclasses import field as dataclass_field
-from typing import (Any, Callable, Dict, List, Mapping, Optional, Sequence,
-                    Set, Tuple)
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from ccvc.bb import matrix, validate  # noqa: E402
 from ccvc.bb.matrix import Cell  # noqa: E402
@@ -73,11 +88,11 @@ Edge = Tuple[int, int]
 #: `Sequence[VariantSpec]` dışa vermeli; vermezse sessizce atlanır ama
 #: `discover(strict=True)` bunu hata yapar.
 VARIANT_MODULES: Tuple[str, ...] = (
-    "ccvc.bb.bbcvc_variants",   # MIS-Connector-Backbone, MIS-Connector-TreeAgg (bb-algo)
-    "ccvc.bb.v1_dfs",           # DFS-Spanning-Backbone
-    "ccvc.bb.v4_mst",           # GHS-MST-Backbone
-    "ccvc.bb.v5_wuli",          # WuLi-Dominating (tam liste / Bloom / parçalı)
-    "ccvc.bb.v6_anneal",        # Anneal-Local
+    "ccvc.bb.bbcvc_variants",  # MIS-Connector-Backbone, MIS-Connector-TreeAgg (bb-algo)
+    "ccvc.bb.v1_dfs",  # DFS-Spanning-Backbone
+    "ccvc.bb.v4_mst",  # GHS-MST-Backbone
+    "ccvc.bb.v5_wuli",  # WuLi-Dominating (tam liste / Bloom / parçalı)
+    "ccvc.bb.v6_anneal",  # Anneal-Local
     "ccvc.greedy.distributed",  # Three local greedy backbone adaptations
 )
 
@@ -88,9 +103,21 @@ AXES: Tuple[str, ...] = ("scheduler", "phase1", "phase5")
 #: Varyant sonucunda BULUNMASI ZORUNLU alanlar. `bbcvc.BbcvcRun` hepsini taşır,
 #: dolayısıyla BB ailesi için uyarlayıcı yazmaya gerek yoktur.
 REQUIRED_RESULT_FIELDS: Tuple[str, ...] = (
-    "cover", "owner", "total_weight", "tx", "rx", "retx", "bytes_tx",
-    "max_payload", "slots", "t_conv_ms", "converged", "infeasible",
-    "unresolved", "by_phase_tx", "by_type_tx",
+    "cover",
+    "owner",
+    "total_weight",
+    "tx",
+    "rx",
+    "retx",
+    "bytes_tx",
+    "max_payload",
+    "slots",
+    "t_conv_ms",
+    "converged",
+    "infeasible",
+    "unresolved",
+    "by_phase_tx",
+    "by_type_tx",
 )
 
 
@@ -109,10 +136,10 @@ class RunRequest:
     edges: Tuple[Edge, ...]
     weights: Mapping[int, float]
     k: int
-    scheduler: str            # "sync" | "async"
-    seed: int
+    scheduler: str  # "sync" | "async"
+    seed: int  # RNG/channel seed: SweepOptions.rng_seed, else the instance seed
     max_ms: int
-    loss: float = 0.0
+    loss: Union[float, str] = 0.0  # probability, or a channel label passed on as is
     mis_nbrs_max: int = 32
     """HELLO'da taşınabilecek en çok MIS komşusu (BootstrapParams aynı adla).
 
@@ -123,6 +150,33 @@ class RunRequest:
     (ölçüldü). BULGU 3 kıyas kümesinde en büyüğünü 17 ölçmüş; 32 bol pay
     bırakır ve HELLO'yu en kötü 77 bayta çıkarır, yani 250 B'nin çok altında.
     """
+    params_overrides: Optional[Mapping[str, Any]] = None
+    """Field values every arm wrapper sets on its parameter dataclass with
+    `with_overrides` (block M8). None leaves the arm's defaults untouched."""
+
+
+class ParamsOverrideError(ValueError):
+    """An override names no field of the arm's parameter dataclass.
+
+    `run_one` lets it through instead of writing an `error` row, so a typo in
+    a pre-registered factor stops the job rather than filling it with errors.
+    """
+
+
+def with_overrides(params: Any, req: Any) -> Any:
+    """`params` with `req.params_overrides` set by `dataclasses.replace`.
+
+    Each arm has ONE parameter dataclass whose bases carry the bootstrap,
+    protocol and annealing fields, so one replace reaches all three. A key that
+    is not a field of that dataclass raises `ParamsOverrideError`.
+    """
+    over = getattr(req, "params_overrides", None)
+    if not over:
+        return params
+    unknown = sorted(set(over) - {f.name for f in dataclasses.fields(params)})
+    if unknown:
+        raise ParamsOverrideError(f"{type(params).__name__} has no field {unknown}")
+    return dataclasses.replace(params, **over)
 
 
 @dataclass(frozen=True)
@@ -199,9 +253,11 @@ class AnytimeTrace:
 
     #: Şekil altyazısına AYNEN girmesi gereken uyarı. Kodda alanın yanında
     #: durur, çünkü yorumda yazılan bir uyarı tabloya asla kopyalanmıyor.
-    OBSERVER_LABEL = ("gözlemci sınırı: küresel bilgiyle hesaplanmıştır, ağ "
-                      "kendi en iyisini sayılmayan bir convergecast olmadan "
-                      "bildiremez")
+    OBSERVER_LABEL = (
+        "gözlemci sınırı: küresel bilgiyle hesaplanmıştır, ağ "
+        "kendi en iyisini sayılmayan bir convergecast olmadan "
+        "bildiremez"
+    )
 
     @property
     def t_first_valid_ms(self) -> Optional[int]:
@@ -272,6 +328,28 @@ class VariantResult:
     şişirebiliyor. CSV hangi değerle ölçüldüğünü taşımazsa, iki süpürmenin
     maliyet sayıları sessizce kıyaslanamaz hale gelir.
     """
+    double_claimed: Dict[Edge, Tuple[int, ...]] = dataclass_field(default_factory=dict)
+    """Edges that both endpoints claim, from the run. `owner` is a dict and
+    keeps one claim per edge, so only this field shows a double claim."""
+    counters: Dict[str, Any] = dataclass_field(default_factory=dict)
+    """`RUN_COUNTERS` read from the run, plus `double_claims`; None if absent."""
+    discovered_edges: Optional[Tuple[Edge, ...]] = None
+    """The run's final frozen discovered graph; None if the arm does not report it."""
+
+
+#: Run-level counters copied from the run result into the trailing Row columns
+#: of the same names. An arm that does not report one leaves it None (empty).
+RUN_COUNTERS: Tuple[str, ...] = (
+    "mis_depth",
+    "restarts",
+    "tx_after_convergence",
+    "state_bytes_max",
+    "state_bytes_mean",
+)
+
+
+def _edge(u: Any, v: Any) -> Edge:
+    return (int(u), int(v)) if u <= v else (int(v), int(u))
 
 
 def adapt_result(obj: Any, *, variant: str) -> VariantResult:
@@ -286,15 +364,25 @@ def adapt_result(obj: Any, *, variant: str) -> VariantResult:
     if not backbone:
         nodes = getattr(obj, "nodes", None)
         if isinstance(nodes, dict):
-            backbone = tuple(sorted(
-                nid for nid, nd in nodes.items()
-                if getattr(getattr(nd, "role", None), "in_backbone", False)))
+            backbone = tuple(
+                sorted(
+                    nid
+                    for nid, nd in nodes.items()
+                    if getattr(getattr(nd, "role", None), "in_backbone", False)
+                )
+            )
     params: Dict[str, int] = {}
     nodes_obj = getattr(obj, "nodes", None)
     if isinstance(nodes_obj, dict) and nodes_obj:
         p = getattr(next(iter(nodes_obj.values())), "p", None)
-        for fname in ("push_ttl", "push_ttl_max", "mis_nbrs_max", "quiet_periods",
-                      "ack_max_attempts", "nbr_table_max"):
+        for fname in (
+            "push_ttl",
+            "push_ttl_max",
+            "mis_nbrs_max",
+            "quiet_periods",
+            "ack_max_attempts",
+            "nbr_table_max",
+        ):
             val = getattr(p, fname, None)
             if isinstance(val, int):
                 params[fname] = val
@@ -302,30 +390,49 @@ def adapt_result(obj: Any, *, variant: str) -> VariantResult:
     if verdict and verdict not in ("solved", "unresolved", "truncated"):
         raise ContractError(
             f"{variant}: bilinmeyen verdict {verdict!r}; "
-            "'solved' | 'unresolved' | 'truncated' olmalı")
+            "'solved' | 'unresolved' | 'truncated' olmalı"
+        )
     trace = getattr(obj, "trace", None)
     if trace is not None:
         if not isinstance(trace, AnytimeTrace):
             raise ContractError(f"{variant}: trace AnytimeTrace olmalı, {type(trace)}")
         trace.check()
+    double = {
+        _edge(u, v): tuple(int(x) for x in who)
+        for (u, v), who in dict(getattr(obj, "double_claimed", {}) or {}).items()
+    }
+    counters = {c: getattr(obj, c, None) for c in RUN_COUNTERS}
+    counters["double_claims"] = len(double) if hasattr(obj, "double_claimed") else None
     return VariantResult(
         cover=sorted(int(v) for v in obj.cover),
-        owner={(int(u), int(v)) if u <= v else (int(v), int(u)): int(o)
-               for (u, v), o in dict(obj.owner).items()},
+        owner={_edge(u, v): int(o) for (u, v), o in dict(obj.owner).items()},
         total_weight=float(obj.total_weight),
-        tx=int(obj.tx), rx=int(obj.rx), retx=int(obj.retx),
-        bytes_tx=int(obj.bytes_tx), max_payload=int(obj.max_payload),
+        tx=int(obj.tx),
+        rx=int(obj.rx),
+        retx=int(obj.retx),
+        bytes_tx=int(obj.bytes_tx),
+        max_payload=int(obj.max_payload),
         slots=None if obj.slots is None else int(obj.slots),
         t_conv_ms=None if obj.t_conv_ms is None else int(obj.t_conv_ms),
-        converged=bool(obj.converged), infeasible=bool(obj.infeasible),
+        converged=bool(obj.converged),
+        infeasible=bool(obj.infeasible),
         unresolved=bool(obj.unresolved),
         by_phase_tx={int(a): int(b) for a, b in dict(obj.by_phase_tx).items()},
         by_type_tx={int(a): int(b) for a, b in dict(obj.by_type_tx).items()},
         verdict=verdict,
         truncated=bool(getattr(obj, "truncated", not bool(obj.converged))),
         infeasible_reason=str(getattr(obj, "infeasible_reason", "") or ""),
-        backbone=backbone, trace=trace, params=params,
+        backbone=backbone,
+        trace=trace,
+        params=params,
         notes=tuple(getattr(obj, "notes", ()) or ()),
+        double_claimed=double,
+        counters=counters,
+        discovered_edges=(
+            tuple(sorted(_edge(u, v) for u, v in obj.discovered_edges))
+            if hasattr(obj, "discovered_edges")
+            else None
+        ),
     )
 
 
@@ -342,11 +449,19 @@ def builtin_variants() -> List[VariantSpec]:
 
     def _make(tree: bool):
         def run(req: RunRequest):
-            return run_bbcvc(list(req.edges), dict(req.weights), req.k,
-                             scheduler=req.scheduler, max_ms=req.max_ms,
-                             loss=req.loss, seed=req.seed,
-                             params=BbcvcParams(enable_tree=tree,
-                                                mis_nbrs_max=req.mis_nbrs_max))
+            return run_bbcvc(
+                list(req.edges),
+                dict(req.weights),
+                req.k,
+                scheduler=req.scheduler,
+                max_ms=req.max_ms,
+                loss=req.loss,
+                seed=req.seed,
+                params=with_overrides(
+                    BbcvcParams(enable_tree=tree, mis_nbrs_max=req.mis_nbrs_max), req
+                ),
+            )
+
         return run
 
     return [
@@ -356,8 +471,14 @@ def builtin_variants() -> List[VariantSpec]:
 
 
 #: Bir varyant bildiriminde BULUNMASI gereken alanlar.
-_SPEC_ATTRS: Tuple[str, ...] = ("name", "family", "phase1", "phase5", "run",
-                                "schedulers")
+_SPEC_ATTRS: Tuple[str, ...] = (
+    "name",
+    "family",
+    "phase1",
+    "phase5",
+    "run",
+    "schedulers",
+)
 
 
 def _check_spec(obj: Any, where: str) -> None:
@@ -381,17 +502,20 @@ def _check_spec(obj: Any, where: str) -> None:
         raise ContractError(
             f"{where}: BB_VARIANTS girdisi varyant bildirimi değil "
             f"({type(obj).__name__}), eksik alanlar {missing}. "
-            f"Zorunlu alanlar: {list(_SPEC_ATTRS)}")
+            f"Zorunlu alanlar: {list(_SPEC_ATTRS)}"
+        )
     if not callable(getattr(obj, "run")):
         raise ContractError(f"{where}: {obj.name}.run çağrılabilir değil")
     for ax in ("phase1", "phase5"):
         if not isinstance(getattr(obj, ax), str):
-            raise ContractError(f"{where}: {obj.name}.{ax} metin olmalı "
-                                "(eşleşmiş kıyas ekseni)")
+            raise ContractError(
+                f"{where}: {obj.name}.{ax} metin olmalı " "(eşleşmiş kıyas ekseni)"
+            )
 
 
-def discover(extra: Sequence[VariantSpec] = (), *,
-             strict: bool = False) -> List[VariantSpec]:
+def discover(
+    extra: Sequence[VariantSpec] = (), *, strict: bool = False
+) -> List[VariantSpec]:
     """Yerleşik kollar + `VARIANT_MODULES` içinde bulunanlar.
 
     Bulunamayan modül normalde SESSİZCE atlanır, çünkü varyantlar sırayla
@@ -435,8 +559,14 @@ def discover(extra: Sequence[VariantSpec] = (), *,
 #: doğrulayıcıda taşkın olarak görünür, ve o satırın `gate_fail` diye
 #: etiketlenmesi "başarısızlık veridir" kuralını görünmez kılardı.
 STATUS_ORDER: Tuple[str, ...] = (
-    "bad_input", "error", "invalid", "truncated", "infeasible", "unresolved",
-    "contradiction", "ok",
+    "bad_input",
+    "error",
+    "invalid",
+    "truncated",
+    "infeasible",
+    "unresolved",
+    "contradiction",
+    "ok",
 )
 #: `contradiction`: kol BAŞARI İDDİA ETTİ (hiçbir bayrak kalkmadı, sükûnete
 #: erdi) ama DOĞRULAYICI ihlal buldu. Eski adı `gate_fail`di ve adı yaptığı işi
@@ -448,7 +578,7 @@ STATUS_ORDER: Tuple[str, ...] = (
 @dataclass
 class Row:
     # -- kimlik
-    source: str              # "dataset" | "synthetic"
+    source: str  # "dataset" | "synthetic"
     group: str
     n: int
     ratio: int
@@ -461,9 +591,9 @@ class Row:
     phase5: str
     scheduler: str
     k: int
-    loss: float
-    graph_connected: bool    # brief §1 G'nin BAĞLI olduğunu varsayar; değilse satır kaydedilmez
-    code_fingerprint: str    # satırın ölçüldüğü kod sürümü; karışık CSV'yi görünür kılar
+    loss: Union[float, str]
+    graph_connected: bool  # brief §1 G'nin BAĞLI olduğunu varsayar; değilse satır kaydedilmez
+    code_fingerprint: str  # satırın ölçüldüğü kod sürümü; karışık CSV'yi görünür kılar
     counting_bound_infeasible: bool
     """m > n·k, yani uygunsuzluk UCUZCA kanıtlanabilir.
 
@@ -474,20 +604,20 @@ class Row:
     ama yalnız akışla görülebilen bir örnekte bildirmemek kusur değildir,
     çünkü bugünkü HELLO ile sağlam bir yerel tanık hesaplanamıyor (bb-algo).
     """
-    trace_agrees: str        # anytime izi ile çözüm aynı şeyi mi söylüyor: "yes"|"no:..."|"none"
-    verdict_agrees: str      # kolun kendi beyanı ile doğrulayıcının kararı: "yes"|"no:..."
-    instance_feasible: str   # "yes" | "no" | "unknown:<neden>" (bkz. instance_feasibility)
-    relabelled: bool         # 0 tabanlı etiketler 1..n'e taşındı mı (bkz. prepare)
-    weight_scale: int        # ağırlık nicemleme ölçeği
+    trace_agrees: str  # anytime izi ile çözüm aynı şeyi mi söylüyor: "yes"|"no:..."|"none"
+    verdict_agrees: str  # kolun kendi beyanı ile doğrulayıcının kararı: "yes"|"no:..."
+    instance_feasible: str  # "yes" | "no" (max-flow, every n) | "unknown:<exception>"
+    relabelled: bool  # 0 tabanlı etiketler 1..n'e taşındı mı (bkz. prepare)
+    weight_scale: int  # ağırlık nicemleme ölçeği
     weight_rel_error: float  # nicemlemenin soktuğu en büyük bağıl hata
-    mis_nbrs_max: int        # HELLO'daki MIS komşusu üst sınırı (yük ölçümünü SANSÜRLEYEBİLİR)
-    push_ttl_max: int        # Faz 4 PUSH derinlik tavanı; maliyeti ~3 kat değiştirir
-    payload_at_cap: bool     # ölçülen max_payload tam sınıra oturdu mu -> ölçüm sansürlü
+    mis_nbrs_max: int  # HELLO'daki MIS komşusu üst sınırı (yük ölçümünü SANSÜRLEYEBİLİR)
+    push_ttl_max: int  # Faz 4 PUSH derinlik tavanı; maliyeti ~3 kat değiştirir
+    payload_at_cap: bool  # ölçülen max_payload tam sınıra oturdu mu -> ölçüm sansürlü
     # -- sonuç
     status: str
-    verdict: str             # koşumun hükmü (bb-algo): solved|unresolved|truncated
-    truncated: bool          # duvar bütçesi bağladı mı; bağladıysa sayılar kesiktir
-    infeasible_reason: str   # "" | "counting_bound" | "node"
+    verdict: str  # koşumun hükmü (bb-algo): solved|unresolved|truncated
+    truncated: bool  # duvar bütçesi bağladı mı; bağladıysa sayılar kesiktir
+    infeasible_reason: str  # "" | "counting_bound" | "node"
     converged: bool
     infeasible: bool
     unresolved: bool
@@ -531,7 +661,26 @@ class Row:
     #: simulatorde surec olmadigi icin uretilemez; adi bu yuzden "proxy".
     radio_activity_mJ_proxy: Optional[float] = None
     energy_model_version: str = ""
-
+    #: Seed the run's RNG and channel were drawn with. `seed` names the
+    #: instance; the two differ only when SweepOptions.rng_seed is set.
+    rng_seed: Optional[int] = None
+    #: SweepOptions.params_overrides as sorted-key JSON, "" when none (M8).
+    params: str = ""
+    #: Run-level counters of the run result (RUN_COUNTERS), empty when the
+    #: arm does not report them; `double_claims` = |double_claimed|.
+    mis_depth: Optional[int] = None
+    restarts: Optional[int] = None
+    tx_after_convergence: Optional[int] = None
+    state_bytes_max: Optional[int] = None
+    state_bytes_mean: Optional[float] = None
+    double_claims: Optional[int] = None
+    #: Amendment 4: validity on the final discovered graph (double owners
+    #: included), and how that graph differs from the planned one. `valid`
+    #: above stays validity on the planned graph. Empty when the arm does not
+    #: report its discovered graph.
+    valid_discovered: Optional[bool] = None
+    planned_missing: Optional[int] = None
+    discovered_extra: Optional[int] = None
 
     @property
     def cell_key(self) -> Tuple[str, int, int, int]:
@@ -564,21 +713,24 @@ CSV_FIELDS: Tuple[str, ...] = tuple(Row.__annotations__.keys())
 DEFAULT_WEIGHT_SCALE = 10
 
 #: 16.16 sabit noktalı anahtar int32'ye sığmalı: key = w/(deg+1) <= 32767.
-MAX_FIXED_POINT_WEIGHT = (2 ** 31 - 1) // (1 << 16)
+MAX_FIXED_POINT_WEIGHT = (2**31 - 1) // (1 << 16)
 
 
 @dataclass(frozen=True)
 class Adaptation:
     """Örneği düğüm koduna sokmak için yapılan ve SAKLANMAYAN dönüşümler."""
 
-    relabelled: bool          # 0 tabanlı etiketler 1..n'e taşındı mı
+    relabelled: bool  # 0 tabanlı etiketler 1..n'e taşındı mı
     weight_scale: int
-    weight_rel_error: float   # nicemlemenin soktuğu en büyük bağıl hata
+    weight_rel_error: float  # nicemlemenin soktuğu en büyük bağıl hata
 
 
-def prepare(weights: Mapping[int, float], edges: Sequence[Edge], *,
-            weight_scale: int = DEFAULT_WEIGHT_SCALE
-            ) -> Tuple[Dict[int, float], List[Edge], Adaptation]:
+def prepare(
+    weights: Mapping[int, float],
+    edges: Sequence[Edge],
+    *,
+    weight_scale: int = DEFAULT_WEIGHT_SCALE,
+) -> Tuple[Dict[int, float], List[Edge], Adaptation]:
     """Kıyas örneğini düğüm kodunun kabul ettiği biçime getir.
 
     İKİ GERÇEK UYUMSUZLUK, ikisi de ölçüldü:
@@ -605,9 +757,11 @@ def prepare(weights: Mapping[int, float], edges: Sequence[Edge], *,
     if out and max(out.values()) > MAX_FIXED_POINT_WEIGHT:
         raise ContractError(
             f"nicemlenmiş ağırlık {max(out.values()):g} > {MAX_FIXED_POINT_WEIGHT}; "
-            f"16.16 anahtarı int32'ye sığmaz, weight_scale küçültülmeli")
-    new_edges = sorted({(idx[u], idx[v]) if idx[u] <= idx[v] else (idx[v], idx[u])
-                        for u, v in edges})
+            f"16.16 anahtarı int32'ye sığmaz, weight_scale küçültülmeli"
+        )
+    new_edges = sorted(
+        {(idx[u], idx[v]) if idx[u] <= idx[v] else (idx[v], idx[u]) for u, v in edges}
+    )
     return out, new_edges, Adaptation(relabel, weight_scale, round(err, 6))
 
 
@@ -623,9 +777,13 @@ class Instance:
     adaptation: Adaptation = Adaptation(False, 1, 0.0)
 
 
-def dataset_instances(cells: Sequence[Cell], *, max_seeds: Optional[int] = None,
-                      directory: Optional[str] = None,
-                      weight_scale: int = DEFAULT_WEIGHT_SCALE) -> List[Instance]:
+def dataset_instances(
+    cells: Sequence[Cell],
+    *,
+    max_seeds: Optional[int] = None,
+    directory: Optional[str] = None,
+    weight_scale: int = DEFAULT_WEIGHT_SCALE,
+) -> List[Instance]:
     """Kıyas kümesinden örnekler. Veri kümesi yoksa BOŞ döner, uydurmaz."""
     d = directory or matrix.dataset_dir()
     if d is None:
@@ -633,14 +791,15 @@ def dataset_instances(cells: Sequence[Cell], *, max_seeds: Optional[int] = None,
     out: List[Instance] = []
     for cell in cells:
         seeds = matrix.seeds_available(cell, d)
-        for seed in (seeds if max_seeds is None else seeds[:max_seeds]):
+        for seed in seeds if max_seeds is None else seeds[:max_seeds]:
             path = matrix.instance_path(cell, seed, d)
             if not path:
                 continue
             raw_w, raw_e = matrix.load_instance(path)
             w, e, adapt = prepare(raw_w, raw_e, weight_scale=weight_scale)
-            out.append(Instance("dataset", cell, seed, path, tuple(e), w,
-                                len(seeds), adapt))
+            out.append(
+                Instance("dataset", cell, seed, path, tuple(e), w, len(seeds), adapt)
+            )
     return out
 
 
@@ -655,7 +814,7 @@ def synthetic_instance(cell: Cell, seed: int) -> Instance:
     nodes = list(range(1, cell.n + 1))
     rng.shuffle(nodes)
     edges: Set[Edge] = set()
-    for i in range(1, len(nodes)):              # önce omurga ağacı: bağlılık garanti
+    for i in range(1, len(nodes)):  # önce omurga ağacı: bağlılık garanti
         u, v = nodes[i], nodes[rng.randrange(i)]
         edges.add((u, v) if u < v else (v, u))
     target = min(cell.m, cell.max_edges)
@@ -665,9 +824,16 @@ def synthetic_instance(cell: Cell, seed: int) -> Instance:
         u, v = rng.sample(nodes, 2)
         edges.add((u, v) if u < v else (v, u))
     weights = {i: float(rng.randint(1, 9)) for i in range(1, cell.n + 1)}
-    return Instance("synthetic", cell, seed, f"synthetic:{cell.stem}_s{seed}",
-                    tuple(sorted(edges)), weights, 0,
-                    Adaptation(False, 1, 0.0))
+    return Instance(
+        "synthetic",
+        cell,
+        seed,
+        f"synthetic:{cell.stem}_s{seed}",
+        tuple(sorted(edges)),
+        weights,
+        0,
+        Adaptation(False, 1, 0.0),
+    )
 
 
 # ==========================================================================
@@ -676,7 +842,11 @@ def synthetic_instance(cell: Cell, seed: int) -> Instance:
 @dataclass
 class SweepOptions:
     k: int = 4
-    loss: float = 0.0
+    loss: Union[float, str] = 0.0
+    rng_seed: Optional[int] = None
+    """RNG and channel seed of every run. None keeps the old behaviour, which
+    seeds each run with its instance seed; set it to draw several channel
+    realisations of one instance."""
     max_ms: int = 600_000
     connectivity: str = validate.STRICT
     mis_nbrs_max: int = 32
@@ -691,21 +861,28 @@ class SweepOptions:
     """
     exact_max_n: int = 18
     exact_time_limit_s: float = 5.0
-    feasibility_max_n: int = 200
     time_budget_s: Optional[float] = None
+    params_overrides: Optional[Mapping[str, Any]] = None
+    """Passed to every run as RunRequest.params_overrides (see with_overrides)."""
 
 
-def _exact_reference(edges: Sequence[Edge], weights: Mapping[int, float], k: int,
-                     opts: SweepOptions) -> Tuple[Optional[float], str]:
+def _exact_reference(
+    edges: Sequence[Edge], weights: Mapping[int, float], k: int, opts: SweepOptions
+) -> Tuple[Optional[float], str]:
     """Küçük örneklerde optimum gerçeği. Koşamıyorsa NEDENİ döner, sessizlik değil."""
     if len(weights) > opts.exact_max_n:
         return None, f"skipped:n>{opts.exact_max_n}"
     try:
         from ccvc import central
+
         g = validate.make_graph(list(edges), k, dict(weights))
-        r = central.solve_exact(g, max_n=opts.exact_max_n,
-                                time_limit_s=opts.exact_time_limit_s, strict=False)
-    except Exception as exc:                      # noqa: BLE001 - nedeni satıra yazılır
+        r = central.solve_exact(
+            g,
+            max_n=opts.exact_max_n,
+            time_limit_s=opts.exact_time_limit_s,
+            strict=False,
+        )
+    except Exception as exc:  # noqa: BLE001 - nedeni satıra yazılır
         return None, f"error:{type(exc).__name__}"
     if not getattr(r, "feasible", True):
         return None, "infeasible"
@@ -715,31 +892,107 @@ def _exact_reference(edges: Sequence[Edge], weights: Mapping[int, float], k: int
     return round(sum(float(weights[v]) for v in cover), 6), "ok"
 
 
-def code_fingerprint() -> str:
-    """Koşumun karşısında koştuğu KODUN parmak izi (bb paketinin dosya imzası).
+#: Reporting-only modules. `code_fingerprint` neither hashes nor follows them,
+#: so editing a table or a figure does not move the measurement version.
+REPORTING_MODULES: Tuple[str, ...] = tuple(
+    f"ccvc.bb.{name}"
+    for name in (
+        "armnames",
+        "compare_figures",
+        "exact_compare",
+        "figstyle",
+        "paper_tables",
+        "reliability_figure",
+        "report_pipeline",
+        "revision_stats",
+        "heldout",
+    )
+)
 
-    Bir süpürme 20 dakika sürüyor ve depo canlı: bir takım arkadaşı ortasında
-    yama geçirdiğinde CSV, İKİ FARKLI KOD SÜRÜMÜNDEN ölçülmüş satırları aynı
-    tabloda toplar ve bunu hiçbir sütun söylemez. Bugün tam olarak bu oldu:
-    süpürme sırasında `unresolved` temizleme yaması indi, bitmiş CSV hâlâ üç
-    uyuşmazlık gösteriyordu, oysa aynı örnek tek başına koşturulunca temizdi.
 
-    Parmak izi mtime+boyuta dayanır, içeriğe değil: amaç kriptografik bütünlük
-    değil, "bu satırlar aynı koddan mı" sorusunun ucuz ve kesin yanıtı.
+# shortcut: the file list is cached per process; a changed import still moves
+# the hash because the importing file's bytes change, and a new process re-reads it.
+@functools.lru_cache(maxsize=None)
+def measurement_files(root: str) -> Tuple[str, ...]:
+    """Modules on the measurement import path under `root`, as sorted POSIX paths.
+
+    Start from `ccvc.bb.sweep`, `ccvc.bb.r1_run` and `VARIANT_MODULES` (loaded
+    with `__import__`, so no static import names them) and follow every
+    absolute `ccvc` import, at module level and inside functions, read with
+    `ast` without executing anything. Parent packages count, since their
+    `__init__.py` runs on import. `test_*` modules and `REPORTING_MODULES` are
+    neither listed nor followed. A name that is not a file under `root`, such
+    as a class in `from ccvc.bb.api import MsgType`, is skipped.
+    """
+    import ast
+
+    files: Set[str] = set()
+    visited: Set[str] = set()
+    # hga_ref and r1_optima measure the references (Amendment 14)
+    todo = ["ccvc.bb.sweep", "ccvc.bb.r1_run", "ccvc.bb.hga_ref", "ccvc.bb.r1_optima", *VARIANT_MODULES]
+    while todo:
+        mod = todo.pop()
+        if mod in visited:
+            continue
+        visited.add(mod)
+        if mod in REPORTING_MODULES or mod.rsplit(".", 1)[-1].startswith("test_"):
+            continue
+        base = os.path.join(root, *mod.split("."))
+        path = next(
+            (
+                p
+                for p in (base + ".py", os.path.join(base, "__init__.py"))
+                if os.path.isfile(p)
+            ),
+            None,
+        )
+        if path is None:
+            continue
+        files.add(os.path.relpath(path, root).replace(os.sep, "/"))
+        parts = mod.split(".")
+        todo += [".".join(parts[:i]) for i in range(1, len(parts))]
+        with open(path, "rb") as fh:
+            tree = ast.parse(fh.read(), filename=path)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                todo += [a.name for a in node.names if a.name.startswith("ccvc")]
+            elif (
+                isinstance(node, ast.ImportFrom)
+                and node.level == 0
+                and (node.module or "").startswith("ccvc")
+            ):
+                todo += [node.module, *(f"{node.module}.{a.name}" for a in node.names)]
+    return tuple(sorted(files))
+
+
+def code_fingerprint(root: Optional[str] = None) -> str:
+    """Content hash of the code a run measures: 12 hex digits of a sha256.
+
+    Recipe: for each path P in `measurement_files(root)` (sorted POSIX paths
+    relative to the repository root), feed sha256 the UTF-8 bytes of
+    `P + "\\0" + str(len(B)) + "\\0"` followed by the file's bytes B; report
+    the first 12 hex digits. `root` defaults to the tree this module was
+    imported from, so a run from a snapshot records the snapshot.
+
+    Only bytes enter the hash, never mtimes or sizes on disk, so touching or
+    copying the tree leaves it unchanged and any byte edit to a measurement
+    module moves it. Installed libraries and the Python version are not
+    covered; the frozen git tag and the run environment record those. The
+    column exists because a sweep once pooled rows measured before and after
+    a patch that landed while it ran, and no column showed it.
     """
     import hashlib
-    import pathlib
 
-    here = pathlib.Path(__file__).parent
+    if root is None:
+        root = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        )
     h = hashlib.sha256()
-    for f in sorted(here.glob("*.py")):
-        if f.name.startswith("test_"):
-            continue
-        try:
-            st = f.stat()
-        except OSError:
-            continue
-        h.update(f"{f.name}:{st.st_mtime_ns}:{st.st_size};".encode())
+    for rel in measurement_files(root):
+        with open(os.path.join(root, rel), "rb") as fh:
+            data = fh.read()
+        h.update(f"{rel}\0{len(data)}\0".encode())
+        h.update(data)
     return h.hexdigest()[:12]
 
 
@@ -770,6 +1023,7 @@ def _hello_sizes(n_mis: int) -> Set[int]:
     HELLO" tek bir sayı değil; iki biçim de sansür işareti sayılır.
     """
     from ccvc.bb import wire
+
     return {wire.hello_size(n_mis), wire.hello_size(n_mis) + wire.ANNEAL_BYTES}
 
 
@@ -811,15 +1065,20 @@ def _verdict_agreement(res: VariantResult, rep: Any) -> str:
     # sabitlenmiş), ama koşucu her varyanta açık ve "solved" diyen bir kolun
     # aynı anda pes etmiş olması sessizce geçilmemeli.
     if verdict == "solved" and (res.unresolved or res.infeasible):
-        bad = "+".join(n for n, v in (("unresolved", res.unresolved),
-                                      ("infeasible", res.infeasible)) if v)
+        bad = "+".join(
+            n
+            for n, v in (("unresolved", res.unresolved), ("infeasible", res.infeasible))
+            if v
+        )
         return f"no:verdict='solved' ama {bad} bayrağı da kalkmış"
-    claims_ok = (verdict == "solved" and not res.infeasible)
+    claims_ok = verdict == "solved" and not res.infeasible
     valid = bool(getattr(rep, "valid", False))
     if claims_ok and not valid:
         kinds = sorted({v.kind for v in getattr(rep, "violations", [])})
-        return (f"no:kol başarı bildirdi, doğrulayıcı "
-                f"{len(rep.violations)} ihlal buldu ({'|'.join(kinds)})")
+        return (
+            f"no:kol başarı bildirdi, doğrulayıcı "
+            f"{len(rep.violations)} ihlal buldu ({'|'.join(kinds)})"
+        )
     if verdict == "truncated":
         # Kesilmiş bir koşum elinde geçerli bir örtü tutuyor olabilir; bu bir
         # tespit kusuru DEĞİL, yalnız bütçenin erken bağlamasıdır. Çelişki
@@ -827,12 +1086,15 @@ def _verdict_agreement(res: VariantResult, rep: Any) -> str:
         # gürültüye gömerdi (ölçüldü: max_ms=4000'de geçerli örtü + kesinti).
         return "yes"
     if not claims_ok and valid:
-        flags = [n for n, v in (("infeasible", res.infeasible),
-                                ("unresolved", res.unresolved)) if v]
-        return (f"no:kol {'+'.join(flags) or 'başarısızlık'} bildirdi, "
-                "doğrulayıcı temiz")
+        flags = [
+            n
+            for n, v in (("infeasible", res.infeasible), ("unresolved", res.unresolved))
+            if v
+        ]
+        return (
+            f"no:kol {'+'.join(flags) or 'başarısızlık'} bildirdi, " "doğrulayıcı temiz"
+        )
     return "yes"
-
 
 
 def _distribution_metrics(res, inst, k: int) -> Dict[str, object]:
@@ -877,9 +1139,11 @@ def _distribution_metrics(res, inst, k: int) -> Dict[str, object]:
     load = Counter(res.owner.values())
     loads = [load.get(v, 0) for v in cover] or [0]
     coeff = EnergyCoefficients()
-    radio = (res.bytes_tx * coeff.tx_cost_mJ_per_byte
-             + res.rx * coeff.rx_cost_mJ_per_delivery
-             + res.retx * coeff.retx_cost_mJ)
+    radio = (
+        res.bytes_tx * coeff.tx_cost_mJ_per_byte
+        + res.rx * coeff.rx_cost_mJ_per_delivery
+        + res.retx * coeff.retx_cost_mJ
+    )
 
     per_node_tx = getattr(res, "tx_by_node", None)
     tx_max = max(per_node_tx.values()) if per_node_tx else None
@@ -930,12 +1194,19 @@ def _trace_agreement(res: VariantResult, feasible: str = "") -> str:
     if feasible == "no":
         return "n/a:örnek uygunsuz, geçerli durum beklenmiyor"
     if not valid:
-        return "yes" if not res.cover else (
-            f"no:iz hiç geçerli çözüm görmedi ama koşum |C|={len(res.cover)} döndü")
+        return (
+            "yes"
+            if not res.cover
+            else (
+                f"no:iz hiç geçerli çözüm görmedi ama koşum |C|={len(res.cover)} döndü"
+            )
+        )
     last = valid[-1]
     if not res.cover:
-        return (f"no:iz Σw={last.observer_best_weight:g} ile geçerli çözüm "
-                "bildiriyor, koşum BOŞ örtü döndü")
+        return (
+            f"no:iz Σw={last.observer_best_weight:g} ile geçerli çözüm "
+            "bildiriyor, koşum BOŞ örtü döndü"
+        )
     # Zarf ile SON DURUM bilerek farklı olabilir (Metropolis yokuş yukarı
     # kabul eder; 60 tohumda 29'unda fark var). Bu bir çelişki DEĞİLDİR.
     # Yalnız TERS yön ihlaldir ve bb-core bunu kanıtladı: son durum her zaman
@@ -943,11 +1214,15 @@ def _trace_agreement(res: VariantResult, feasible: str = "") -> str:
     # (akış tabanlı, sahipliksiz), dolayısıyla süpürmenin geçerli saydığı her
     # son durum zarfa girmiş olmak zorundadır. Zarfın daha kötü çıkması ancak
     # son durum GEÇERSİZKEN olur, ki boş örtü hatası tam olarak öyle görünmüştü.
-    if (last.observer_best_weight is not None
-            and last.observer_best_weight > res.total_weight + 1e-6):
-        return (f"no:gözlemci zarfı Σw={last.observer_best_weight:g}, koşumun "
-                f"son durumu Σw={res.total_weight:g} ile DAHA İYİ; zarf en "
-                "iyiyi kaçırmış (son durum geçersiz olabilir)")
+    if (
+        last.observer_best_weight is not None
+        and last.observer_best_weight > res.total_weight + 1e-6
+    ):
+        return (
+            f"no:gözlemci zarfı Σw={last.observer_best_weight:g}, koşumun "
+            f"son durumu Σw={res.total_weight:g} ile DAHA İYİ; zarf en "
+            "iyiyi kaçırmış (son durum geçersiz olabilir)"
+        )
     return "yes"
 
 
@@ -955,26 +1230,105 @@ def instance_feasibility(inst: Instance, opts: SweepOptions) -> str:
     """C=V ile bile kapasite atanabiliyor mu (Hakimi). Kolun değil ÖRNEĞİN kusuru.
 
     Bir örnek kanıtlanabilir biçimde uygunsuzsa hiçbir kol onu çözemez ve o
-    örneği kol başarısızlığı saymak bütün oranları bozar. Akış denetimi büyük
-    çizgede pahalı olduğundan sınırın üstünde KOŞULMAZ ve sonuç `unknown:` diye
-    işaretlenir; "uygun varsayalım" demek ölçmediğimizi ölçmüş gibi göstermek
-    olurdu.
+    örneği kol başarısızlığı saymak bütün oranları bozar. The max-flow check
+    runs at every size (about 1 s at n = 1000); `unknown:` is left only for a
+    check that raised.
     """
-    if inst.cell.n > opts.feasibility_max_n:
-        return f"unknown:n>{opts.feasibility_max_n}"
     try:
         from ccvc import bridge
-        g = validate.make_graph(list(inst.edges), opts.k, dict(inst.weights),
-                                nodes=sorted(inst.weights))
+
+        g = validate.make_graph(
+            list(inst.edges), opts.k, dict(inst.weights), nodes=sorted(inst.weights)
+        )
         ok, _ = bridge.capacity_feasible(g, set(inst.weights))
-    except Exception as exc:                      # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         return f"unknown:{type(exc).__name__}"
     return "yes" if ok else "no"
 
 
-def run_one(inst: Instance, spec: VariantSpec, scheduler: str, opts: SweepOptions,
-            *, exact: Optional[Tuple[Optional[float], str]] = None,
-            feasible: str = "unknown:not_requested") -> Row:
+#: Violation kind of an edge that both endpoints claim (repair F6).
+DOUBLE_OWNER = "double_owner"
+
+
+def validate_run(
+    g: Any, run: Any, *, connectivity: str = validate.STRICT
+) -> validate.BbValidationReport:
+    """CoverAudit of one run: `validate.validate` on (cover, owner) plus one
+    `double_owner` violation per edge in `run.double_claimed`.
+
+    `owner` keeps one claim per edge, so `validate` alone passes a run in which
+    both endpoints claim an edge (proof audit, three lost HANDOVER_ACKs). Every
+    validator path in the sweep goes through here.
+    """
+    rep = validate.validate(g, run.cover, run.owner, connectivity=connectivity)
+    for (u, v), who in sorted(dict(getattr(run, "double_claimed", {}) or {}).items()):
+        rep.violations.append(
+            validate.Violation(
+                kind=DOUBLE_OWNER,
+                detail=f"edge {_edge(u, v)} is claimed by {tuple(who)}",
+                nodes=tuple(int(x) for x in who),
+                edges=(_edge(u, v),),
+            )
+        )
+    return rep
+
+
+def discovered_reading(
+    planned: Sequence[Edge],
+    weights: Mapping[int, float],
+    k: int,
+    res: Any,
+    *,
+    connectivity: str = validate.STRICT,
+) -> Dict[str, Any]:
+    """Validity on the run's final discovered graph, and its difference from
+    the planned graph (Amendment 4). Empty when the arm reports no graph.
+
+    The discovered graph can be disconnected; the guarantees then hold per
+    component, so a strict reading becomes per component there. Ownership is
+    read on the discovered edges, double owners included, while capacity counts
+    every edge a node claims, discovered or not, so a node cannot hide load on
+    an edge its peer never verified.
+    """
+    found = getattr(res, "discovered_edges", None)
+    if found is None:
+        return {}
+    disc = {_edge(u, v) for u, v in found}
+    plan_ = {_edge(u, v) for u, v in planned}
+    g = validate.make_graph(sorted(disc), k, dict(weights), nodes=sorted(weights))
+    if connectivity == validate.STRICT and len(validate.graph_components(g)) > 1:
+        connectivity = validate.PER_COMPONENT
+    double = dict(getattr(res, "double_claimed", {}) or {})
+    view = SimpleNamespace(
+        cover=res.cover,
+        owner={e: o for e, o in res.owner.items() if e in disc},
+        double_claimed={e: w for e, w in double.items() if e in disc},
+    )
+    rep = validate_run(g, view, connectivity=connectivity)
+    load = Counter(res.owner.values())
+    for e, who in double.items():
+        load.update(x for x in who if x != res.owner.get(e))
+    return dict(
+        valid_discovered=bool(rep.valid) and max(load.values(), default=0) <= k,
+        planned_missing=len(plan_ - disc),
+        discovered_extra=len(disc - plan_),
+    )
+
+
+def _params_label(opts: SweepOptions) -> str:
+    over = opts.params_overrides
+    return json.dumps(dict(over), sort_keys=True) if over else ""
+
+
+def run_one(
+    inst: Instance,
+    spec: VariantSpec,
+    scheduler: str,
+    opts: SweepOptions,
+    *,
+    exact: Optional[Tuple[Optional[float], str]] = None,
+    feasible: str = "unknown:not_requested",
+) -> Row:
     """Tek kolu tek örnekte koş ve HER DURUMDA bir satır üret.
 
     Çöken, yakınsamayan, çözülemeyen koşum da satır yazar; maliyet sütunları
@@ -994,59 +1348,122 @@ def run_one(inst: Instance, spec: VariantSpec, scheduler: str, opts: SweepOption
     ex_w, ex_s = exact if exact is not None else (None, "not_requested")
     k = opts.k
     base = dict(
-        source=inst.source, group=inst.cell.group, n=inst.cell.n,
-        ratio=inst.cell.ratio, m=len(inst.edges), seed=inst.seed,
-        instance=os.path.basename(inst.path), variant=spec.name,
-        family=spec.family, phase1=spec.phase1, phase5=spec.phase5,
-        scheduler=scheduler, k=k, loss=opts.loss,
-        graph_connected=connected, code_fingerprint=code_fingerprint(),
-        counting_bound_infeasible=(len(inst.edges) > len(inst.weights) * k
-                                   if k > 0 else True),
+        source=inst.source,
+        group=inst.cell.group,
+        n=inst.cell.n,
+        ratio=inst.cell.ratio,
+        m=len(inst.edges),
+        seed=inst.seed,
+        instance=os.path.basename(inst.path),
+        variant=spec.name,
+        family=spec.family,
+        phase1=spec.phase1,
+        phase5=spec.phase5,
+        scheduler=scheduler,
+        k=k,
+        loss=opts.loss,
+        graph_connected=connected,
+        code_fingerprint=code_fingerprint(),
+        counting_bound_infeasible=(
+            len(inst.edges) > len(inst.weights) * k if k > 0 else True
+        ),
         instance_feasible=feasible,
         relabelled=inst.adaptation.relabelled,
         weight_scale=inst.adaptation.weight_scale,
         weight_rel_error=inst.adaptation.weight_rel_error,
         lower_bound_g6=math.ceil(len(inst.edges) / k) if k > 0 else 0,
-        exact_weight=ex_w, exact_status=ex_s,
+        exact_weight=ex_w,
+        exact_status=ex_s,
         seeds_in_cell=inst.seeds_in_cell,
+        rng_seed=inst.seed if opts.rng_seed is None else opts.rng_seed,
+        params=_params_label(opts),
     )
     empty = dict(
-        verdict="", truncated=False, infeasible_reason="",
-        trace_agrees="none", verdict_agrees="yes",
-        mis_nbrs_max=opts.mis_nbrs_max, push_ttl_max=0,
-        payload_at_cap=False, converged=False, infeasible=False, unresolved=False, valid=False,
-        vertex_cover=False, connected=False, capacity=False, violations=0,
-        violation_kinds="", cover_size=None, total_weight=None,
-        backbone_size=None, backbone_weight=None, slots=None, t_conv_ms=None,
-        tx=None, rx=None, retx=None, bytes_tx=None, max_payload=None,
+        verdict="",
+        truncated=False,
+        infeasible_reason="",
+        trace_agrees="none",
+        verdict_agrees="yes",
+        mis_nbrs_max=opts.mis_nbrs_max,
+        push_ttl_max=0,
+        payload_at_cap=False,
+        converged=False,
+        infeasible=False,
+        unresolved=False,
+        valid=False,
+        vertex_cover=False,
+        connected=False,
+        capacity=False,
+        violations=0,
+        violation_kinds="",
+        cover_size=None,
+        total_weight=None,
+        backbone_size=None,
+        backbone_weight=None,
+        slots=None,
+        t_conv_ms=None,
+        tx=None,
+        rx=None,
+        retx=None,
+        bytes_tx=None,
+        max_payload=None,
         hello_tx=None,
     )
 
     if not connected and opts.require_connected:
-        return Row(status="bad_input", seconds=round(time.perf_counter() - t0, 3),
-                   detail=("girdi çizgesi kopuk; brief §1 bağlı G varsayar. "
-                           "Bileşen bazlı ölçüm isteniyorsa "
-                           "SweepOptions(require_connected=False, "
-                           "connectivity='per_component')"),
-                   **base, **empty)
+        return Row(
+            status="bad_input",
+            seconds=round(time.perf_counter() - t0, 3),
+            detail=(
+                "girdi çizgesi kopuk; brief §1 bağlı G varsayar. "
+                "Bileşen bazlı ölçüm isteniyorsa "
+                "SweepOptions(require_connected=False, "
+                "connectivity='per_component')"
+            ),
+            **base,
+            **empty,
+        )
 
-    req = RunRequest(edges=inst.edges, weights=dict(inst.weights), k=k,
-                     scheduler=scheduler, seed=inst.seed, max_ms=opts.max_ms,
-                     loss=opts.loss, mis_nbrs_max=opts.mis_nbrs_max)
+    req = RunRequest(
+        edges=inst.edges,
+        weights=dict(inst.weights),
+        k=k,
+        scheduler=scheduler,
+        seed=base["rng_seed"],
+        max_ms=opts.max_ms,
+        loss=opts.loss,
+        mis_nbrs_max=opts.mis_nbrs_max,
+        params_overrides=opts.params_overrides,
+    )
     try:
         res = adapt_result(spec.run(req), variant=spec.name)
-    except Exception as exc:                      # noqa: BLE001
+    except ParamsOverrideError:
+        raise
+    except Exception as exc:  # noqa: BLE001
         status = "invalid" if type(exc).__name__ == "RunInvalid" else "error"
-        return Row(status=status, seconds=round(time.perf_counter() - t0, 3),
-                   detail=f"{type(exc).__name__}: {exc}"[:300], **base, **empty)
+        return Row(
+            status=status,
+            seconds=round(time.perf_counter() - t0, 3),
+            detail=f"{type(exc).__name__}: {exc}"[:300],
+            **base,
+            **empty,
+        )
 
     from ccvc.bb.api import MsgType
+
     cost = dict(
-        verdict=_verdict_of(res), truncated=res.truncated,
+        verdict=_verdict_of(res),
+        truncated=res.truncated,
         infeasible_reason=res.infeasible_reason,
-        converged=res.converged, infeasible=res.infeasible,
-        unresolved=res.unresolved, slots=res.slots, t_conv_ms=res.t_conv_ms,
-        tx=res.tx, rx=res.rx, retx=res.retx, bytes_tx=res.bytes_tx,
+        converged=res.converged,
+        infeasible=res.infeasible,
+        unresolved=res.unresolved,
+        slots=res.slots,
+        t_conv_ms=res.t_conv_ms,
+        tx=res.tx,
+        rx=res.rx,
+        retx=res.retx,
+        bytes_tx=res.bytes_tx,
         max_payload=res.max_payload,
         hello_tx=int(res.by_type_tx.get(int(MsgType.HELLO), 0)),
         # Sınıra oturan yük ÖLÇÜLMEMİŞ demektir, "tam bu kadar" demek değil:
@@ -1056,24 +1473,35 @@ def run_one(inst: Instance, spec: VariantSpec, scheduler: str, opts: SweepOption
         # İSTENEN değil KULLANILAN değer; varyant isteği yok sayabilir.
         mis_nbrs_max=res.params.get("mis_nbrs_max", opts.mis_nbrs_max),
         push_ttl_max=res.params.get("push_ttl_max", 0),
-        cover_size=len(res.cover), total_weight=res.total_weight,
+        cover_size=len(res.cover),
+        total_weight=res.total_weight,
         trace_agrees=_trace_agreement(res, feasible),
         backbone_size=len(res.backbone) or None,
-        backbone_weight=(round(sum(float(inst.weights[v]) for v in res.backbone), 6)
-                         if res.backbone else None),
+        backbone_weight=(
+            round(sum(float(inst.weights[v]) for v in res.backbone), 6)
+            if res.backbone
+            else None
+        ),
         **_distribution_metrics(res, inst, k),
+        **res.counters,
     )
-    g = validate.make_graph(list(inst.edges), k, dict(inst.weights),
-                            nodes=sorted(inst.weights))
-    rep = validate.validate(g, res.cover, res.owner, connectivity=opts.connectivity)
+    g = validate.make_graph(
+        list(inst.edges), k, dict(inst.weights), nodes=sorted(inst.weights)
+    )
+    rep = validate_run(g, res, connectivity=opts.connectivity)
     gates = dict(
-        valid=bool(rep.valid), vertex_cover=bool(rep.vertex_cover),
-        connected=bool(rep.connected), capacity=bool(rep.capacity),
+        valid=bool(rep.valid),
+        vertex_cover=bool(rep.vertex_cover),
+        connected=bool(rep.connected),
+        capacity=bool(rep.capacity),
         violations=len(rep.violations),
         violation_kinds="|".join(sorted({v.kind for v in rep.violations})),
         # `rep` BURADA hesaplanmış oluyor; çapraz denetim maliyet sözlüğünde
         # değil burada durmalı (ilk denememde `rep` henüz yoktu).
         verdict_agrees=_verdict_agreement(res, rep),
+        **discovered_reading(
+            inst.edges, inst.weights, k, res, connectivity=opts.connectivity
+        ),
     )
     verdict = _verdict_of(res)
     if verdict == "truncated":
@@ -1088,8 +1516,14 @@ def run_one(inst: Instance, spec: VariantSpec, scheduler: str, opts: SweepOption
         status = "contradiction"
     else:
         status = "ok"
-    return Row(status=status, seconds=round(time.perf_counter() - t0, 3),
-               detail="; ".join(res.notes)[:300], **base, **cost, **gates)
+    return Row(
+        status=status,
+        seconds=round(time.perf_counter() - t0, 3),
+        detail="; ".join(res.notes)[:300],
+        **base,
+        **cost,
+        **gates,
+    )
 
 
 # ==========================================================================
@@ -1102,8 +1536,12 @@ class PlanEntry:
     scheduler: str
 
 
-def plan(instances: Sequence[Instance], specs: Sequence[VariantSpec], *,
-         schedulers: Sequence[str] = ("sync", "async")) -> List[PlanEntry]:
+def plan(
+    instances: Sequence[Instance],
+    specs: Sequence[VariantSpec],
+    *,
+    schedulers: Sequence[str] = ("sync", "async"),
+) -> List[PlanEntry]:
     """Ne koşulacağını KOŞMADAN listele.
 
     Matris 310 örnek ve n=1000'e kadar çıkıyor; kaç koşum olacağını önceden
@@ -1118,10 +1556,14 @@ def plan(instances: Sequence[Instance], specs: Sequence[VariantSpec], *,
     return out
 
 
-def sweep(instances: Sequence[Instance], specs: Sequence[VariantSpec], *,
-          schedulers: Sequence[str] = ("sync", "async"),
-          opts: Optional[SweepOptions] = None,
-          progress: Optional[Callable[[str], None]] = None) -> List[Row]:
+def sweep(
+    instances: Sequence[Instance],
+    specs: Sequence[VariantSpec],
+    *,
+    schedulers: Sequence[str] = ("sync", "async"),
+    opts: Optional[SweepOptions] = None,
+    progress: Optional[Callable[[str], None]] = None,
+) -> List[Row]:
     """Bütün kolları AYNI örnekler üstünde koş (eşleştirilmiş tasarım).
 
     Süre bütçesi dolarsa kalan girdiler `skipped` satırı olarak yazılır, sessizce
@@ -1135,63 +1577,124 @@ def sweep(instances: Sequence[Instance], specs: Sequence[VariantSpec], *,
     t_start = time.perf_counter()
     stopped = False
     for i, e in enumerate(entries, 1):
-        key = (e.instance.source, e.instance.cell.n, len(e.instance.edges),
-               e.instance.seed)
+        key = (
+            e.instance.source,
+            e.instance.cell.n,
+            len(e.instance.edges),
+            e.instance.seed,
+        )
         if key not in exact_cache:
-            exact_cache[key] = _exact_reference(e.instance.edges,
-                                                e.instance.weights, o.k, o)
+            exact_cache[key] = _exact_reference(
+                e.instance.edges, e.instance.weights, o.k, o
+            )
             feas_cache[key] = instance_feasibility(e.instance, o)
-        if stopped or (o.time_budget_s is not None
-                       and time.perf_counter() - t_start > o.time_budget_s):
+        if stopped or (
+            o.time_budget_s is not None
+            and time.perf_counter() - t_start > o.time_budget_s
+        ):
             stopped = True
-            rows.append(_skipped_row(e, o, exact_cache[key], feas_cache[key],
-                                     "süre bütçesi doldu"))
+            rows.append(
+                _skipped_row(
+                    e, o, exact_cache[key], feas_cache[key], "süre bütçesi doldu"
+                )
+            )
             continue
-        row = run_one(e.instance, e.spec, e.scheduler, o,
-                      exact=exact_cache[key], feasible=feas_cache[key])
+        row = run_one(
+            e.instance,
+            e.spec,
+            e.scheduler,
+            o,
+            exact=exact_cache[key],
+            feasible=feas_cache[key],
+        )
         rows.append(row)
         if progress:
-            progress(f"[{i}/{len(entries)}] {row.instance} {row.arm} "
-                     f"-> {row.status} ({row.seconds:.1f}s)")
+            progress(
+                f"[{i}/{len(entries)}] {row.instance} {row.arm} "
+                f"-> {row.status} ({row.seconds:.1f}s)"
+            )
     return rows
 
 
-def _skipped_row(e: PlanEntry, o: SweepOptions,
-                 exact: Tuple[Optional[float], str], feasible: str,
-                 why: str) -> Row:
+def _skipped_row(
+    e: PlanEntry,
+    o: SweepOptions,
+    exact: Tuple[Optional[float], str],
+    feasible: str,
+    why: str,
+) -> Row:
     inst, spec = e.instance, e.spec
     return Row(
-        source=inst.source, group=inst.cell.group, n=inst.cell.n,
-        ratio=inst.cell.ratio, m=len(inst.edges), seed=inst.seed,
-        instance=os.path.basename(inst.path), variant=spec.name,
-        family=spec.family, phase1=spec.phase1, phase5=spec.phase5,
-        scheduler=e.scheduler, k=o.k, loss=o.loss,
+        source=inst.source,
+        group=inst.cell.group,
+        n=inst.cell.n,
+        ratio=inst.cell.ratio,
+        m=len(inst.edges),
+        seed=inst.seed,
+        instance=os.path.basename(inst.path),
+        variant=spec.name,
+        family=spec.family,
+        phase1=spec.phase1,
+        phase5=spec.phase5,
+        scheduler=e.scheduler,
+        k=o.k,
+        loss=o.loss,
+        rng_seed=inst.seed if o.rng_seed is None else o.rng_seed,
+        params=_params_label(o),
         graph_connected=is_connected(sorted(inst.weights), inst.edges),
         code_fingerprint=code_fingerprint(),
-        counting_bound_infeasible=(len(inst.edges) > len(inst.weights) * o.k
-                                   if o.k > 0 else True),
-        trace_agrees="none", instance_feasible=feasible,
+        counting_bound_infeasible=(
+            len(inst.edges) > len(inst.weights) * o.k if o.k > 0 else True
+        ),
+        trace_agrees="none",
+        instance_feasible=feasible,
         relabelled=inst.adaptation.relabelled,
         weight_scale=inst.adaptation.weight_scale,
         weight_rel_error=inst.adaptation.weight_rel_error,
-        mis_nbrs_max=o.mis_nbrs_max, push_ttl_max=0, payload_at_cap=False,
-        verdict="", truncated=False, infeasible_reason="", verdict_agrees="yes",
-        status="skipped", converged=False, infeasible=False, unresolved=False,
-        valid=False, vertex_cover=False, connected=False, capacity=False,
-        violations=0, violation_kinds="", cover_size=None, total_weight=None,
+        mis_nbrs_max=o.mis_nbrs_max,
+        push_ttl_max=0,
+        payload_at_cap=False,
+        verdict="",
+        truncated=False,
+        infeasible_reason="",
+        verdict_agrees="yes",
+        status="skipped",
+        converged=False,
+        infeasible=False,
+        unresolved=False,
+        valid=False,
+        vertex_cover=False,
+        connected=False,
+        capacity=False,
+        violations=0,
+        violation_kinds="",
+        cover_size=None,
+        total_weight=None,
         lower_bound_g6=math.ceil(len(inst.edges) / o.k) if o.k > 0 else 0,
-        backbone_size=None, backbone_weight=None, slots=None, t_conv_ms=None,
-        tx=None, rx=None, retx=None, bytes_tx=None, max_payload=None,
-        hello_tx=None, exact_weight=exact[0], exact_status=exact[1],
-        seeds_in_cell=inst.seeds_in_cell, seconds=0.0, detail=why)
+        backbone_size=None,
+        backbone_weight=None,
+        slots=None,
+        t_conv_ms=None,
+        tx=None,
+        rx=None,
+        retx=None,
+        bytes_tx=None,
+        max_payload=None,
+        hello_tx=None,
+        exact_weight=exact[0],
+        exact_status=exact[1],
+        seeds_in_cell=inst.seeds_in_cell,
+        seconds=0.0,
+        detail=why,
+    )
 
 
 # ==========================================================================
 # 7. Özet: hayatta kalma yanlılığı ve eşleşmiş çiftler
 # ==========================================================================
-def matched_pairs(specs: Sequence[VariantSpec],
-                  schedulers: Sequence[str] = ("sync", "async")
-                  ) -> List[Tuple[str, str, str]]:
+def matched_pairs(
+    specs: Sequence[VariantSpec], schedulers: Sequence[str] = ("sync", "async")
+) -> List[Tuple[str, str, str]]:
     """TAM OLARAK BİR eksende ayrılan kol çiftleri (disiplin kuralı 2).
 
     Kıyas edilebilirlik bir dikkat meselesi değil, bir SÜZGEÇ: iki şeyi birden
@@ -1200,11 +1703,13 @@ def matched_pairs(specs: Sequence[VariantSpec],
     """
     arms: List[Tuple[str, VariantSpec, str]] = [
         (f"{s.name}/{sch}", s, sch)
-        for s in specs for sch in schedulers if sch in s.schedulers
+        for s in specs
+        for sch in schedulers
+        if sch in s.schedulers
     ]
     out: List[Tuple[str, str, str]] = []
     for i, (na, sa, scha) in enumerate(arms):
-        for nb, sb, schb in arms[i + 1:]:
+        for nb, sb, schb in arms[i + 1 :]:
             if sa.family != sb.family:
                 continue
             diff: List[str] = []
@@ -1222,9 +1727,12 @@ def _mean(xs: Sequence[float]) -> Optional[float]:
     return round(statistics.mean(xs), 4) if xs else None
 
 
-def summarize(rows: Sequence[Row], *,
-              specs: Optional[Sequence[VariantSpec]] = None,
-              schedulers: Sequence[str] = ("sync", "async")) -> Dict[str, Any]:
+def summarize(
+    rows: Sequence[Row],
+    *,
+    specs: Optional[Sequence[VariantSpec]] = None,
+    schedulers: Sequence[str] = ("sync", "async"),
+) -> Dict[str, Any]:
     """Kol başına istatistik + ORTAK ALTKÜME oranları + eşleşmiş çiftler."""
     arms = sorted({r.arm for r in rows})
     by_arm: Dict[str, List[Row]] = {a: [] for a in arms}
@@ -1236,12 +1744,14 @@ def summarize(rows: Sequence[Row], *,
     all_instances = {r.instance_key for r in rows} - infeasible_instances
 
     valid_keys: Dict[str, Set[Any]] = {
-        a: {r.instance_key for r in by_arm[a]
-            if r.status == "ok" and r.valid and r.instance_key in all_instances}
+        a: {
+            r.instance_key
+            for r in by_arm[a]
+            if r.status == "ok" and r.valid and r.instance_key in all_instances
+        }
         for a in arms
     }
-    common: Set[Any] = (set.intersection(*valid_keys.values())
-                        if valid_keys else set())
+    common: Set[Any] = set.intersection(*valid_keys.values()) if valid_keys else set()
 
     # Referans ağırlık: küçük örnekte kesin çözüm, yoksa ortak altkümedeki EN İYİ
     # kol. İkincisi bir yaklaşım oranı DEĞİLDİR, göreli bir orandır ve öyle
@@ -1273,54 +1783,72 @@ def summarize(rows: Sequence[Row], *,
         # kanıtlanabilir uygunsuz hücrelerdeki 24 `unresolved` satır envanterden
         # düşer ve kol hiç başarısız olmamış gibi görünürdü (ölçüldü); oysa o
         # satırlar gerçek slot ve tx harcadı ve maliyetleri raporun konusu.
-        counts = {st: sum(1 for r in rs if r.status == st)
-                  for st in list(STATUS_ORDER) + ["skipped"]}
-        counts_all = {st: sum(1 for r in by_arm[a] if r.status == st)
-                      for st in list(STATUS_ORDER) + ["skipped"]}
+        counts = {
+            st: sum(1 for r in rs if r.status == st)
+            for st in list(STATUS_ORDER) + ["skipped"]
+        }
+        counts_all = {
+            st: sum(1 for r in by_arm[a] if r.status == st)
+            for st in list(STATUS_ORDER) + ["skipped"]
+        }
         # Kanıtlanabilir uygunsuz örnekte kolun UYGUNSUZ DEMESİ beklenir
         # (brief Faz 4). Dememek bir tespit boşluğudur ve ayrı sayılır; oran
         # ortalamalarına girmediği için başka hiçbir sütunda görünmez.
         infeas_rows = [r for r in by_arm[a] if r.instance_feasible == "no"]
         entry: Dict[str, Any] = {
-            "n": len(rs), "valid": len(ok),
+            "n": len(rs),
+            "valid": len(ok),
             "rows_total": len(by_arm[a]),
             "status": {k: v for k, v in counts.items() if v},
             "status_all": {k: v for k, v in counts_all.items() if v},
-            "trace_disagrees": sum(1 for r in by_arm[a]
-                                   if r.trace_agrees.startswith("no:")),
-            "verdict_disagrees": sum(1 for r in by_arm[a]
-                                     if r.verdict_agrees.startswith("no:")),
-            "false_success": sum(1 for r in by_arm[a]
-                                 if r.status == "contradiction"),
+            "trace_disagrees": sum(
+                1 for r in by_arm[a] if r.trace_agrees.startswith("no:")
+            ),
+            "verdict_disagrees": sum(
+                1 for r in by_arm[a] if r.verdict_agrees.startswith("no:")
+            ),
+            "false_success": sum(1 for r in by_arm[a] if r.status == "contradiction"),
             "on_infeasible_instances": len(infeas_rows),
             # AYIRIM: ucuzca kanıtlanabilir olanı kaçırmak kol kusurudur;
             # yalnız akışla görülebileni kaçırmak değildir (bb-algo).
             "missed_infeasible": sum(1 for r in infeas_rows if not r.infeasible),
             "missed_provable_infeasible": sum(
-                1 for r in infeas_rows
-                if r.counting_bound_infeasible and not r.infeasible),
+                1
+                for r in infeas_rows
+                if r.counting_bound_infeasible and not r.infeasible
+            ),
             "infeasible_not_cheaply_provable": sum(
-                1 for r in infeas_rows if not r.counting_bound_infeasible),
+                1 for r in infeas_rows if not r.counting_bound_infeasible
+            ),
         }
         if infeas_rows:
             sl = [float(r.slots) for r in infeas_rows if r.slots is not None]
             tx_ = [float(r.tx) for r in infeas_rows if r.tx is not None]
             entry["infeasible_slots_mean"] = _mean(sl)
             entry["infeasible_tx_mean"] = _mean(tx_)
-        for tag, ref, keys in (("exact_own", exact_ref, None),
-                               ("exact_common", exact_ref, common),
-                               ("best_own", best_ref, None),
-                               ("best_common", best_ref, common)):
-            vals = [r.total_weight / ref[r.instance_key] for r in ok
-                    if r.instance_key in ref and ref[r.instance_key] > 0
-                    and (keys is None or r.instance_key in keys)]
+        for tag, ref, keys in (
+            ("exact_own", exact_ref, None),
+            ("exact_common", exact_ref, common),
+            ("best_own", best_ref, None),
+            ("best_common", best_ref, common),
+        ):
+            vals = [
+                r.total_weight / ref[r.instance_key]
+                for r in ok
+                if r.instance_key in ref
+                and ref[r.instance_key] > 0
+                and (keys is None or r.instance_key in keys)
+            ]
             if vals:
                 entry[f"ratio_{tag}_mean"] = _mean(vals)
                 entry[f"ratio_{tag}_max"] = round(max(vals), 4)
                 entry[f"ratio_{tag}_n"] = len(vals)
         for col in ("tx", "rx", "bytes_tx", "slots", "t_conv_ms", "max_payload"):
-            vals = [getattr(r, col) for r in ok
-                    if r.instance_key in common and getattr(r, col) is not None]
+            vals = [
+                getattr(r, col)
+                for r in ok
+                if r.instance_key in common and getattr(r, col) is not None
+            ]
             if vals:
                 entry[f"{col}_common_mean"] = _mean([float(v) for v in vals])
         # Hayatta kalma sinyali: kolun kendi altkümesi ile ortak altküme
@@ -1330,7 +1858,8 @@ def summarize(rows: Sequence[Row], *,
         if own is not None and com is not None and abs(own - com) > 0.02:
             entry["survivorship_warning"] = (
                 f"kendi altkümesinde {own}, ortak altkümede {com}; "
-                f"fark {round(abs(own - com), 4)} başarısızlık örüntüsünden geliyor")
+                f"fark {round(abs(own - com), 4)} başarısızlık örüntüsünden geliyor"
+            )
         out[a] = entry
 
     if specs:
@@ -1342,27 +1871,34 @@ def summarize(rows: Sequence[Row], *,
             ra = {r.instance_key: r for r in by_arm.get(na, [])}
             rb = {r.instance_key: r for r in by_arm.get(nb, [])}
             item: Dict[str, Any] = {
-                "a": na, "b": nb, "axis": axis,
+                "a": na,
+                "b": nb,
+                "axis": axis,
                 "n_both_valid": len(both),
-                "only_a_valid": len(ka - kb), "only_b_valid": len(kb - ka),
+                "only_a_valid": len(ka - kb),
+                "only_b_valid": len(kb - ka),
             }
             if both:
                 wa = [ra[k].total_weight for k in both]
                 wb = [rb[k].total_weight for k in both]
                 item["same_cover"] = sum(
-                    1 for k in both if ra[k].cover_size == rb[k].cover_size)
+                    1 for k in both if ra[k].cover_size == rb[k].cover_size
+                )
                 item["weight_ratio_b_over_a"] = _mean(
-                    [y / x for x, y in zip(wa, wb) if x])
+                    [y / x for x, y in zip(wa, wb) if x]
+                )
                 txa = [ra[k].tx for k in both if ra[k].tx is not None]
                 txb = [rb[k].tx for k in both if rb[k].tx is not None]
                 if txa and txb and len(txa) == len(txb):
                     item["tx_ratio_b_over_a"] = _mean(
-                        [y / x for x, y in zip(txa, txb) if x])
+                        [y / x for x, y in zip(txa, txb) if x]
+                    )
             pairs.append(item)
         out["_matched_pairs"] = pairs
         out["_unmatched_note"] = (
             "Eşleşmiş çift listesinde OLMAYAN kol ikilileri, birden çok eksende "
-            "ayrıldıkları için kıyaslanabilir değildir; özet onları kıyaslamaz.")
+            "ayrıldıkları için kıyaslanabilir değildir; özet onları kıyaslamaz."
+        )
     return out
 
 
@@ -1374,11 +1910,20 @@ def cell_coverage(rows: Sequence[Row]) -> List[Dict[str, Any]]:
     cells: Dict[Tuple[str, str, int, int, int], Dict[str, Any]] = {}
     for r in rows:
         key = (r.source, r.group, r.n, r.ratio, r.m)
-        c = cells.setdefault(key, {
-            "source": r.source, "group": r.group, "n": r.n, "ratio": r.ratio,
-            "m": r.m, "seeds_run": set(), "seeds_in_dataset": r.seeds_in_cell,
-            "rows": 0, "ok": 0,
-        })
+        c = cells.setdefault(
+            key,
+            {
+                "source": r.source,
+                "group": r.group,
+                "n": r.n,
+                "ratio": r.ratio,
+                "m": r.m,
+                "seeds_run": set(),
+                "seeds_in_dataset": r.seeds_in_cell,
+                "rows": 0,
+                "ok": 0,
+            },
+        )
         c["seeds_run"].add(r.seed)
         c["rows"] += 1
         c["ok"] += 1 if r.status == "ok" else 0
@@ -1388,8 +1933,11 @@ def cell_coverage(rows: Sequence[Row]) -> List[Dict[str, Any]]:
         n_seeds = len(c["seeds_run"])
         c["seeds_run"] = n_seeds
         c["single_run"] = n_seeds < 3
-        c["label"] = ("TEK KOŞUM (ortalama denemez)" if n_seeds == 1
-                      else f"{n_seeds} tohum" + (" (3'ten az)" if n_seeds < 3 else ""))
+        c["label"] = (
+            "TEK KOŞUM (ortalama denemez)"
+            if n_seeds == 1
+            else f"{n_seeds} tohum" + (" (3'ten az)" if n_seeds < 3 else "")
+        )
         out.append(c)
     return out
 
@@ -1424,8 +1972,9 @@ def _fmt(x: Any) -> str:
     return str(x)
 
 
-def summary_markdown(rows: Sequence[Row], summary: Mapping[str, Any],
-                     manifest: Mapping[str, Any]) -> str:
+def summary_markdown(
+    rows: Sequence[Row], summary: Mapping[str, Any], manifest: Mapping[str, Any]
+) -> str:
     """`summary.md`. Tohum sayısı, başarısızlıklar ve yanlılık uyarısı ZORUNLU."""
     L: List[str] = ["# BB-CVC süpürme özeti", ""]
 
@@ -1438,25 +1987,35 @@ def summary_markdown(rows: Sequence[Row], summary: Mapping[str, Any],
     bad = [r for r in rows if r.status == "bad_input"]
     if bad:
         cells = sorted({(r.group, r.n, r.m, r.seed) for r in bad})
-        L += ["## 1b. UYARI: KOPUK GİRDİ ÇİZGESİ", "",
-              f"**{len(bad)} satır kaydedilmedi** çünkü girdi çizgesi kopuktu. "
-              "Brief §1 G'nin BAĞLI olduğunu VARSAYAR; kopuk bir çizgede ölçülen "
-              "sayı, algoritmanın taahhüt etmediği bir öncül üstünde ölçülmüştür "
-              "ve bağlı çizge sayılarıyla aynı ortalamaya giremez.", "",
-              "Bu bir kol kusuru değil **girdi kusurudur** ve sessizce "
-              "geçilemez: farklı çizge popülasyonlarından gelen satırları aynı "
-              "sütunda toplamak, kolları farklı popülasyonlar üstünde "
-              "kıyaslamak demektir.", "",
-              "| grup | n | m | tohum |", "|---|---|---|---|"]
+        L += [
+            "## 1b. UYARI: KOPUK GİRDİ ÇİZGESİ",
+            "",
+            f"**{len(bad)} satır kaydedilmedi** çünkü girdi çizgesi kopuktu. "
+            "Brief §1 G'nin BAĞLI olduğunu VARSAYAR; kopuk bir çizgede ölçülen "
+            "sayı, algoritmanın taahhüt etmediği bir öncül üstünde ölçülmüştür "
+            "ve bağlı çizge sayılarıyla aynı ortalamaya giremez.",
+            "",
+            "Bu bir kol kusuru değil **girdi kusurudur** ve sessizce "
+            "geçilemez: farklı çizge popülasyonlarından gelen satırları aynı "
+            "sütunda toplamak, kolları farklı popülasyonlar üstünde "
+            "kıyaslamak demektir.",
+            "",
+            "| grup | n | m | tohum |",
+            "|---|---|---|---|",
+        ]
         for g, n, m, seed in cells[:20]:
             L.append(f"| {g} | {n} | {m} | {seed} |")
         if len(cells) > 20:
             L.append(f"| … | | | {len(cells) - 20} örnek daha |")
         L.append("")
     else:
-        L += ["## 1b. Girdi bağlılığı", "",
-              f"Bütün {len({r.instance_key for r in rows})} örnek **bağlı** "
-              "(brief §1). Kopuk çizgede ölçüm yapılmadı.", ""]
+        L += [
+            "## 1b. Girdi bağlılığı",
+            "",
+            f"Bütün {len({r.instance_key for r in rows})} örnek **bağlı** "
+            "(brief §1). Kopuk çizgede ölçüm yapılmadı.",
+            "",
+        ]
 
     # ÇAPRAZ DENETİM KARNESİ — sayı SIFIR OLSA DA yazılır.
     # Yalnız sorun varken beliren bir bölüm, "koştu ve bir şey bulmadı" ile
@@ -1470,119 +2029,166 @@ def summary_markdown(rows: Sequence[Row], summary: Mapping[str, Any],
     vd_no = sum(1 for r in rows if r.verdict_agrees.startswith("no:"))
     false_ok = sum(1 for r in rows if r.status == "contradiction")
     trunc = sum(1 for r in rows if r.status == "truncated")
-    L += ["## 1c. Çapraz denetim karnesi", "",
-          "Her satır iki bağımsız görünümle karşılaştırılır: kolun kendi beyanı "
-          "doğrulayıcının kararıyla, anytime izi de çözümle. Aşağıdaki sayılar "
-          "SIFIR olsa da yazılır, çünkü boş bir bölüm denetimin koşup bir şey "
-          "bulmadığını değil, koşmadığını da anlatabilirdi.", "",
-          "| denetim | sonuç |", "|---|---|",
-          f"| yanlış başarı (`contradiction`) | **{false_ok}** |",
-          f"| beyan-doğrulayıcı uyuşmazlığı | **{vd_no}** |",
-          f"| iz-çözüm uyuşmazlığı | **{tr_no}** |",
-          f"| iz: uyumlu / uygunsuzda n-a / izsiz | {tr_yes} / {tr_na} / {tr_none} |",
-          f"| kesik koşum (`truncated`) | {trunc} |",
-          f"| kopuk girdi (`bad_input`) | {len(bad)} |",
-          f"| kod sürümü (parmak izi) | {'/'.join(sorted(fingerprints))} |",
-          "",
-          ("> **UYARI: bu CSV birden çok KOD SÜRÜMÜNDEN ölçülmüş satır "
-           f"içeriyor** ({len(fingerprints)} ayrı parmak izi). Süpürme "
-           "sürerken depoya yama inmiş demektir; satırlar aynı tabloda "
-           "toplanamaz, süpürme yeniden koşulmalıdır."
-           if len(fingerprints) > 1 else
-           "> Bütün satırlar TEK bir kod sürümünden ölçülmüştür."), "",
-          "`n/a` satırları uyuşmazlık DEĞİLDİR: çözümü olmayan bir örnekte izin "
-          "hiç geçerli durum görmemesi ile koşumun son yapılandırmayı döndürmesi "
-          "birbiriyle tam uyumludur. Ayrı sayılmalarının nedeni, rutin olarak "
-          "beklenen uyuşmazlık bildiren bir denetimin göz atılıp geçilmesi ve "
-          "gerçek olanın içinde saklanmasıdır.", ""]
+    L += [
+        "## 1c. Çapraz denetim karnesi",
+        "",
+        "Her satır iki bağımsız görünümle karşılaştırılır: kolun kendi beyanı "
+        "doğrulayıcının kararıyla, anytime izi de çözümle. Aşağıdaki sayılar "
+        "SIFIR olsa da yazılır, çünkü boş bir bölüm denetimin koşup bir şey "
+        "bulmadığını değil, koşmadığını da anlatabilirdi.",
+        "",
+        "| denetim | sonuç |",
+        "|---|---|",
+        f"| yanlış başarı (`contradiction`) | **{false_ok}** |",
+        f"| beyan-doğrulayıcı uyuşmazlığı | **{vd_no}** |",
+        f"| iz-çözüm uyuşmazlığı | **{tr_no}** |",
+        f"| iz: uyumlu / uygunsuzda n-a / izsiz | {tr_yes} / {tr_na} / {tr_none} |",
+        f"| kesik koşum (`truncated`) | {trunc} |",
+        f"| kopuk girdi (`bad_input`) | {len(bad)} |",
+        f"| kod sürümü (parmak izi) | {'/'.join(sorted(fingerprints))} |",
+        "",
+        (
+            "> **UYARI: bu CSV birden çok KOD SÜRÜMÜNDEN ölçülmüş satır "
+            f"içeriyor** ({len(fingerprints)} ayrı parmak izi). Süpürme "
+            "sürerken depoya yama inmiş demektir; satırlar aynı tabloda "
+            "toplanamaz, süpürme yeniden koşulmalıdır."
+            if len(fingerprints) > 1
+            else "> Bütün satırlar TEK bir kod sürümünden ölçülmüştür."
+        ),
+        "",
+        "`n/a` satırları uyuşmazlık DEĞİLDİR: çözümü olmayan bir örnekte izin "
+        "hiç geçerli durum görmemesi ile koşumun son yapılandırmayı döndürmesi "
+        "birbiriyle tam uyumludur. Ayrı sayılmalarının nedeni, rutin olarak "
+        "beklenen uyuşmazlık bildiren bir denetimin göz atılıp geçilmesi ve "
+        "gerçek olanın içinde saklanmasıdır.",
+        "",
+    ]
 
-
-    L += ["## 2. Matris kapsamı", "",
-          f"İstenen {cov['requested']} hücrenin {cov['impossible']} tanesi "
-          "**matematiksel olarak imkânsız** (basit çizgede m > C(n,2)), veri "
-          "kümesinde eksik değil:", ""]
+    L += [
+        "## 2. Matris kapsamı",
+        "",
+        f"İstenen {cov['requested']} hücrenin {cov['impossible']} tanesi "
+        "**matematiksel olarak imkânsız** (basit çizgede m > C(n,2)), veri "
+        "kümesinde eksik değil:",
+        "",
+    ]
     for c in matrix.impossible_cells():
         L.append(f"- n={c.n}, m/n={c.ratio}: {c.why_impossible()}")
-    L += ["", f"Kalan {cov['possible']} hücrenin {cov['present_in_dataset']} tanesi "
-          f"veri kümesinde var, toplam {cov['instances_total']} örnek. "
-          f"**{cov['cells_with_fewer_than_3_seeds']} hücrede 3'ten az tohum var.**",
-          ""]
+    L += [
+        "",
+        f"Kalan {cov['possible']} hücrenin {cov['present_in_dataset']} tanesi "
+        f"veri kümesinde var, toplam {cov['instances_total']} örnek. "
+        f"**{cov['cells_with_fewer_than_3_seeds']} hücrede 3'ten az tohum var.**",
+        "",
+    ]
 
     cells = cell_coverage(rows)
     thin = [c for c in cells if c["single_run"]]
-    L += ["## 3. Hücre başına tohum sayısı", "",
-          "Deney disiplini hücre başına en az 3 tohum ister. Aşağıdaki tabloda "
-          "`TEK KOŞUM` yazan satırlarda **ortalama alınamaz**: tek koşum bir "
-          "ortalama değil bir gözlemdir ve öyle etiketlenmiştir.", "",
-          "| kaynak | grup | n | m/n | m | koşulan tohum | veri kümesinde | etiket |",
-          "|---|---|---|---|---|---|---|---|"]
+    L += [
+        "## 3. Hücre başına tohum sayısı",
+        "",
+        "Deney disiplini hücre başına en az 3 tohum ister. Aşağıdaki tabloda "
+        "`TEK KOŞUM` yazan satırlarda **ortalama alınamaz**: tek koşum bir "
+        "ortalama değil bir gözlemdir ve öyle etiketlenmiştir.",
+        "",
+        "| kaynak | grup | n | m/n | m | koşulan tohum | veri kümesinde | etiket |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
     for c in cells:
-        L.append(f"| {c['source']} | {c['group']} | {c['n']} | {c['ratio']} | "
-                 f"{c['m']} | {c['seeds_run']} | {c['seeds_in_dataset'] or '—'} | "
-                 f"{c['label']} |")
+        L.append(
+            f"| {c['source']} | {c['group']} | {c['n']} | {c['ratio']} | "
+            f"{c['m']} | {c['seeds_run']} | {c['seeds_in_dataset'] or '—'} | "
+            f"{c['label']} |"
+        )
     L += ["", f"3'ten az tohumlu hücre: **{len(thin)}/{len(cells)}**.", ""]
 
-    L += ["## 4. Kol envanteri ve durum dağılımı", "",
-          "Her kol AYNI örnekler üstünde koştu (eşleştirilmiş tasarım). "
-          "`unresolved` bir başarısızlık değil bir **sonuçtur** ve satırı "
-          "slot/tx'iyle birlikte CSV'de durur.", "",
-          "`durum (hepsi)` kolun BÜTÜN satırlarını sayar; `durum (uygun)` yalnız "
-          "kanıtlanabilir uygunsuz örnekler çıkarıldıktan sonrasını, yani "
-          "oranların hesaplandığı altkümeyi. İkisi ayrışıyorsa kol yalnız "
-          "çözümü olmayan örneklerde düşmüş demektir.", "",
-          "| kol | satır | oranlara giren | geçerli | durum (hepsi) | durum (uygun) |",
-          "|---|---|---|---|---|---|"]
+    L += [
+        "## 4. Kol envanteri ve durum dağılımı",
+        "",
+        "Her kol AYNI örnekler üstünde koştu (eşleştirilmiş tasarım). "
+        "`unresolved` bir başarısızlık değil bir **sonuçtur** ve satırı "
+        "slot/tx'iyle birlikte CSV'de durur.",
+        "",
+        "`durum (hepsi)` kolun BÜTÜN satırlarını sayar; `durum (uygun)` yalnız "
+        "kanıtlanabilir uygunsuz örnekler çıkarıldıktan sonrasını, yani "
+        "oranların hesaplandığı altkümeyi. İkisi ayrışıyorsa kol yalnız "
+        "çözümü olmayan örneklerde düşmüş demektir.",
+        "",
+        "| kol | satır | oranlara giren | geçerli | durum (hepsi) | durum (uygun) |",
+        "|---|---|---|---|---|---|",
+    ]
     for arm in summary["_arms"]:
         e = summary[arm]
         st = ", ".join(f"{k}={v}" for k, v in sorted(e["status"].items()))
         st_all = ", ".join(f"{k}={v}" for k, v in sorted(e["status_all"].items()))
-        L.append(f"| `{arm}` | {e.get('rows_total', e['n'])} | {e['n']} | "
-                 f"{e['valid']} | {st_all} | {st} |")
+        L.append(
+            f"| `{arm}` | {e.get('rows_total', e['n'])} | {e['n']} | "
+            f"{e['valid']} | {st_all} | {st} |"
+        )
     L.append("")
 
-    infeas_cells = sorted({(r.group, r.n, r.ratio, r.m) for r in rows
-                           if r.instance_feasible == "no"})
+    infeas_cells = sorted(
+        {(r.group, r.n, r.ratio, r.m) for r in rows if r.instance_feasible == "no"}
+    )
     if infeas_cells:
-        L += ["### 4b. Bu k'da KANITLANABİLİR UYGUNSUZ hücreler", "",
-              "Aşağıdaki hücrelerde C=V ile bile kapasite atanamıyor (Hakimi). "
-              "Burada bir kolun başarısız olması **kol kusuru değildir**; bu "
-              "satırlar oran ortalamalarının tamamen dışındadır. Matrisi bu k "
-              "ile koşmak bu hücreleri anlamsız kılar, k büyütülmelidir.", "",
-              "| grup | n | m/n | m | ⌈m/k⌉ |", "|---|---|---|---|---|"]
+        L += [
+            "### 4b. Bu k'da KANITLANABİLİR UYGUNSUZ hücreler",
+            "",
+            "Aşağıdaki hücrelerde C=V ile bile kapasite atanamıyor (Hakimi). "
+            "Burada bir kolun başarısız olması **kol kusuru değildir**; bu "
+            "satırlar oran ortalamalarının tamamen dışındadır. Matrisi bu k "
+            "ile koşmak bu hücreleri anlamsız kılar, k büyütülmelidir.",
+            "",
+            "| grup | n | m/n | m | ⌈m/k⌉ |",
+            "|---|---|---|---|---|",
+        ]
         for g, n, ratio, m in infeas_cells:
             kk = rows[0].k
-            L.append(f"| {g} | {n} | {ratio} | {m} | "
-                     f"{math.ceil(m / kk) if kk else '—'} |")
-        L += ["", "Kol başına: uygunsuz örnekte uygunsuzluğu **ilan edemeyen** "
-              "koşum sayısı `missed_infeasible` sütununda (özet JSON), harcanan "
-              "slot/tx `infeasible_slots_mean`/`infeasible_tx_mean` içinde.", "",
-                  "> **`missed_infeasible` KOLLAR ARASI FARK OKUMAK İÇİN "
-              "KULLANILAMAZ.** Uygunsuzluk tespiti Faz 4'ün ortak kodundadır, "
-              "dolayısıyla tespit kusuru bütün kollarda AYNI okunur.", "",
-              "> Ayrıca her kaçırma kusur DEĞİLDİR. Sayma sınırı (m > n·k) "
-              "ucuzca kanıtlanabilir dejenere sınıfı yakalar; onun dışındaki "
-              "uygunsuzluk yalnız akışla görülür ve bugünkü HELLO ile sağlam "
-              "bir YEREL tanık hesaplanamaz, yani düğümün bildirememesi "
-              "beklenen davranıştır. Kusur sayılabilecek olan "
-              "`missed_provable_infeasible` sütunudur; "
-              "`infeasible_not_cheaply_provable` ise kaçırılması normal olan "
-              "satırları sayar.", ""]
+            L.append(
+                f"| {g} | {n} | {ratio} | {m} | "
+                f"{math.ceil(m / kk) if kk else '—'} |"
+            )
+        L += [
+            "",
+            "Kol başına: uygunsuz örnekte uygunsuzluğu **ilan edemeyen** "
+            "koşum sayısı `missed_infeasible` sütununda (özet JSON), harcanan "
+            "slot/tx `infeasible_slots_mean`/`infeasible_tx_mean` içinde.",
+            "",
+            "> **`missed_infeasible` KOLLAR ARASI FARK OKUMAK İÇİN "
+            "KULLANILAMAZ.** Uygunsuzluk tespiti Faz 4'ün ortak kodundadır, "
+            "dolayısıyla tespit kusuru bütün kollarda AYNI okunur.",
+            "",
+            "> Ayrıca her kaçırma kusur DEĞİLDİR. Sayma sınırı (m > n·k) "
+            "ucuzca kanıtlanabilir dejenere sınıfı yakalar; onun dışındaki "
+            "uygunsuzluk yalnız akışla görülür ve bugünkü HELLO ile sağlam "
+            "bir YEREL tanık hesaplanamaz, yani düğümün bildirememesi "
+            "beklenen davranıştır. Kusur sayılabilecek olan "
+            "`missed_provable_infeasible` sütunudur; "
+            "`infeasible_not_cheaply_provable` ise kaçırılması normal olan "
+            "satırları sayar.",
+            "",
+        ]
 
     vdis = [r for r in rows if r.verdict_agrees.startswith("no:")]
     if vdis:
         false_ok = [r for r in vdis if r.status == "contradiction"]
-        L += ["### 4d. UYARI: kolun beyanı doğrulayıcıyla ÇELİŞİYOR", "",
-              f"**{len(vdis)} satırda** kolun kendi bildirdiği sonuç ile "
-              "doğrulayıcının kararı uyuşmuyor; bunların "
-              f"**{len(false_ok)} tanesi YANLIŞ BAŞARI** (kol başardım dedi, "
-              "doğrulayıcı ihlal buldu) ve `contradiction` durumuyla "
-              "işaretlendi.", "",
-              "`status` doğrulayıcıdan türetildiği için yanlış bir başarı zaten "
-              "`ok` olamaz; bu bölüm onu ayrıca SAYAR, çünkü tek bir etiket "
-              "\"kol yanlış beyan etti\" ile \"kol dürüstçe başarısızlık "
-              "bildirdi\" arasındaki farkı taşımaz.", "",
-              "| kol | çelişen satır | yanlış başarı | örnek neden |",
-              "|---|---|---|---|"]
+        L += [
+            "### 4d. UYARI: kolun beyanı doğrulayıcıyla ÇELİŞİYOR",
+            "",
+            f"**{len(vdis)} satırda** kolun kendi bildirdiği sonuç ile "
+            "doğrulayıcının kararı uyuşmuyor; bunların "
+            f"**{len(false_ok)} tanesi YANLIŞ BAŞARI** (kol başardım dedi, "
+            "doğrulayıcı ihlal buldu) ve `contradiction` durumuyla "
+            "işaretlendi.",
+            "",
+            "`status` doğrulayıcıdan türetildiği için yanlış bir başarı zaten "
+            "`ok` olamaz; bu bölüm onu ayrıca SAYAR, çünkü tek bir etiket "
+            '"kol yanlış beyan etti" ile "kol dürüstçe başarısızlık '
+            'bildirdi" arasındaki farkı taşımaz.',
+            "",
+            "| kol | çelişen satır | yanlış başarı | örnek neden |",
+            "|---|---|---|---|",
+        ]
         byv: Dict[str, List[Row]] = {}
         for r in vdis:
             byv.setdefault(r.arm, []).append(r)
@@ -1595,12 +2201,17 @@ def summary_markdown(rows: Sequence[Row], summary: Mapping[str, Any],
     dis = [r for r in rows if r.trace_agrees.startswith("no:")]
     if dis:
         reasons = sorted({r.trace_agrees for r in dis})
-        L += ["### 4c. UYARI: anytime izi çözümle ÇELİŞİYOR", "",
-              f"**{len(dis)} satırda** koşumun döndürdüğü çözüm ile kendi "
-              "anytime izi aynı şeyi söylemiyor. Bunlar aynı koşumun iki "
-              "görünümüdür; biri yanlıştır ve hangisi olduğu şeklin içinden "
-              "GÖRÜNMEZ, çünkü şekil 8 yalnız ize, CSV yalnız çözüme bakar.", "",
-              "| kol | çelişen satır | neden |", "|---|---|---|"]
+        L += [
+            "### 4c. UYARI: anytime izi çözümle ÇELİŞİYOR",
+            "",
+            f"**{len(dis)} satırda** koşumun döndürdüğü çözüm ile kendi "
+            "anytime izi aynı şeyi söylemiyor. Bunlar aynı koşumun iki "
+            "görünümüdür; biri yanlıştır ve hangisi olduğu şeklin içinden "
+            "GÖRÜNMEZ, çünkü şekil 8 yalnız ize, CSV yalnız çözüme bakar.",
+            "",
+            "| kol | çelişen satır | neden |",
+            "|---|---|---|",
+        ]
         by = {}
         for r in dis:
             by.setdefault(r.arm, []).append(r)
@@ -1608,90 +2219,141 @@ def summary_markdown(rows: Sequence[Row], summary: Mapping[str, Any],
             L.append(f"| `{arm}` | {len(by[arm])} | {by[arm][0].trace_agrees[3:]} |")
         L += ["", f"Görülen nedenler: {len(reasons)} ayrı biçim.", ""]
 
-    L += ["## 5. Hayatta kalma yanlılığı", "",
-          "Bir kol başarısız olunca oran ortalamasından **düşer**, kötü bir oran "
-          "olarak görünmez. Bu yüzden iki oran ayrı verilir: `own` kolun kendi "
-          "geçerli örneklerinde, `common` **bütün kolların** geçerli olduğu ortak "
-          "altkümede. Kıyas `common` ile yapılır.", "",
-          f"- ortak altküme: **{summary['_common_subset_size']}** örnek "
-          f"(toplam {summary['_instances']})",
-          f"- kanıtlanabilir uygunsuz örnek (kol kusuru DEĞİL): "
-          f"{summary['_instances_provably_infeasible']}",
-          f"- kesin çözüm referansı olan örnek: {summary['_exact_reference_instances']}",
-          "",
-          "| kol | ratio_best_own | ratio_best_common | ratio_exact_common "
-          "| tx (ortak) | uyarı |",
-          "|---|---|---|---|---|---|"]
+    L += [
+        "## 5. Hayatta kalma yanlılığı",
+        "",
+        "Bir kol başarısız olunca oran ortalamasından **düşer**, kötü bir oran "
+        "olarak görünmez. Bu yüzden iki oran ayrı verilir: `own` kolun kendi "
+        "geçerli örneklerinde, `common` **bütün kolların** geçerli olduğu ortak "
+        "altkümede. Kıyas `common` ile yapılır.",
+        "",
+        f"- ortak altküme: **{summary['_common_subset_size']}** örnek "
+        f"(toplam {summary['_instances']})",
+        f"- kanıtlanabilir uygunsuz örnek (kol kusuru DEĞİL): "
+        f"{summary['_instances_provably_infeasible']}",
+        f"- kesin çözüm referansı olan örnek: {summary['_exact_reference_instances']}",
+        "",
+        "| kol | ratio_best_own | ratio_best_common | ratio_exact_common "
+        "| tx (ortak) | uyarı |",
+        "|---|---|---|---|---|---|",
+    ]
     for arm in summary["_arms"]:
         e = summary[arm]
-        L.append(f"| `{arm}` | {_fmt(e.get('ratio_best_own_mean'))} | "
-                 f"{_fmt(e.get('ratio_best_common_mean'))} | "
-                 f"{_fmt(e.get('ratio_exact_common_mean'))} | "
-                 f"{_fmt(e.get('tx_common_mean'))} | "
-                 f"{e.get('survivorship_warning', '—')} |")
-    L += ["", "`ratio_best_*` bir **yaklaşım oranı değildir**: referans, ortak "
-          "altkümedeki en iyi koldur, optimum değil. Yaklaşım oranı yalnız "
-          "`ratio_exact_*` sütunundadır ve o da kesin çözücünün koşabildiği "
-          "küçük örneklerde tanımlıdır.", ""]
+        L.append(
+            f"| `{arm}` | {_fmt(e.get('ratio_best_own_mean'))} | "
+            f"{_fmt(e.get('ratio_best_common_mean'))} | "
+            f"{_fmt(e.get('ratio_exact_common_mean'))} | "
+            f"{_fmt(e.get('tx_common_mean'))} | "
+            f"{e.get('survivorship_warning', '—')} |"
+        )
+    L += [
+        "",
+        "`ratio_best_*` bir **yaklaşım oranı değildir**: referans, ortak "
+        "altkümedeki en iyi koldur, optimum değil. Yaklaşım oranı yalnız "
+        "`ratio_exact_*` sütunundadır ve o da kesin çözücünün koşabildiği "
+        "küçük örneklerde tanımlıdır.",
+        "",
+    ]
 
     pairs = summary.get("_matched_pairs") or []
-    L += ["## 6. Eşleşmiş kıyaslar", "",
-          "İki kol ancak **tam olarak bir eksende** ayrılıyorsa kıyaslanır "
-          f"(eksenler: {', '.join(AXES)}). Birden çok şeyi birden değiştiren "
-          "kollar bu tabloya giremez; bu bir dikkat kuralı değil, süzgeçtir.", ""]
+    L += [
+        "## 6. Eşleşmiş kıyaslar",
+        "",
+        "İki kol ancak **tam olarak bir eksende** ayrılıyorsa kıyaslanır "
+        f"(eksenler: {', '.join(AXES)}). Birden çok şeyi birden değiştiren "
+        "kollar bu tabloya giremez; bu bir dikkat kuralı değil, süzgeçtir.",
+        "",
+    ]
     if pairs:
-        L += ["| A | B | eksen | ikisi de geçerli | yalnız A | yalnız B | Σw B/A | tx B/A |",
-              "|---|---|---|---|---|---|---|---|"]
+        L += [
+            "| A | B | eksen | ikisi de geçerli | yalnız A | yalnız B | Σw B/A | tx B/A |",
+            "|---|---|---|---|---|---|---|---|",
+        ]
         for p in pairs:
-            L.append(f"| `{p['a']}` | `{p['b']}` | {p['axis']} | {p['n_both_valid']} | "
-                     f"{p['only_a_valid']} | {p['only_b_valid']} | "
-                     f"{_fmt(p.get('weight_ratio_b_over_a'))} | "
-                     f"{_fmt(p.get('tx_ratio_b_over_a'))} |")
-        L += ["", "`yalnız A` / `yalnız B` sütunları çiftin kendi hayatta kalma "
-              "sinyalidir: sıfır değilse iki kol farklı örnek kümelerinde "
-              "başarılı demektir ve oran tek başına yanıltıcıdır.", ""]
+            L.append(
+                f"| `{p['a']}` | `{p['b']}` | {p['axis']} | {p['n_both_valid']} | "
+                f"{p['only_a_valid']} | {p['only_b_valid']} | "
+                f"{_fmt(p.get('weight_ratio_b_over_a'))} | "
+                f"{_fmt(p.get('tx_ratio_b_over_a'))} |"
+            )
+        L += [
+            "",
+            "`yalnız A` / `yalnız B` sütunları çiftin kendi hayatta kalma "
+            "sinyalidir: sıfır değilse iki kol farklı örnek kümelerinde "
+            "başarılı demektir ve oran tek başına yanıltıcıdır.",
+            "",
+        ]
     else:
-        L += ["Eşleşmiş çift yok: ya tek kol koştu ya da kollar birden çok "
-              "eksende ayrılıyor.", ""]
+        L += [
+            "Eşleşmiş çift yok: ya tek kol koştu ya da kollar birden çok "
+            "eksende ayrılıyor.",
+            "",
+        ]
 
     fails = [r for r in rows if r.status != "ok"]
-    L += ["## 7. Başarısızlık envanteri", "",
-          f"{len(fails)} satır `ok` değil. **Hepsi CSV'de**, maliyet sütunlarıyla "
-          "birlikte; başarısızlığın ne kadara mal olduğu ölçülen bir büyüklüktür.", ""]
+    L += [
+        "## 7. Başarısızlık envanteri",
+        "",
+        f"{len(fails)} satır `ok` değil. **Hepsi CSV'de**, maliyet sütunlarıyla "
+        "birlikte; başarısızlığın ne kadara mal olduğu ölçülen bir büyüklüktür.",
+        "",
+    ]
     if fails:
         by_status: Dict[str, List[Row]] = {}
         for r in fails:
             by_status.setdefault(r.status, []).append(r)
-        L += ["| durum | satır | ort. slot | ort. tx | örnekler |", "|---|---|---|---|---|"]
+        L += [
+            "| durum | satır | ort. slot | ort. tx | örnekler |",
+            "|---|---|---|---|---|",
+        ]
         for st in sorted(by_status):
             rs = by_status[st]
             sl = [r.slots for r in rs if r.slots is not None]
             tx = [r.tx for r in rs if r.tx is not None]
             sample = ", ".join(sorted({f"{r.instance}/{r.arm}" for r in rs})[:3])
-            L.append(f"| `{st}` | {len(rs)} | {_fmt(_mean([float(x) for x in sl]))} | "
-                     f"{_fmt(_mean([float(x) for x in tx]))} | {sample} |")
+            L.append(
+                f"| `{st}` | {len(rs)} | {_fmt(_mean([float(x) for x in sl]))} | "
+                f"{_fmt(_mean([float(x) for x in tx]))} | {sample} |"
+            )
         ok_rows = [r for r in rows if r.status == "ok" and r.slots is not None]
         un = [r for r in fails if r.status == "unresolved" and r.slots is not None]
         if ok_rows and un:
             a, b = _mean([float(r.slots) for r in ok_rows]), _mean(
-                [float(r.slots) for r in un])
+                [float(r.slots) for r in un]
+            )
             if a and b:
-                L += ["", f"Çözülemeyen koşum ortalama **{b} slot** harcıyor, "
-                      f"başarılı koşum {a}; oran **{round(b / a, 1)}×**. "
-                      "Başarısızlık ucuz değildir ve bu sayı raporun kendisidir.", ""]
+                L += [
+                    "",
+                    f"Çözülemeyen koşum ortalama **{b} slot** harcıyor, "
+                    f"başarılı koşum {a}; oran **{round(b / a, 1)}×**. "
+                    "Başarısızlık ucuz değildir ve bu sayı raporun kendisidir.",
+                    "",
+                ]
     return "\n".join(L) + "\n"
 
 
-def write_outputs(rows: Sequence[Row], summary: Mapping[str, Any],
-                  manifest: Mapping[str, Any], outdir: str) -> Dict[str, str]:
+def write_outputs(
+    rows: Sequence[Row],
+    summary: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    outdir: str,
+) -> Dict[str, str]:
     os.makedirs(outdir, exist_ok=True)
     paths = {"csv": write_csv(rows, os.path.join(outdir, "rows.csv"))}
     js = os.path.join(outdir, "summary.json")
     tmp = js + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump({"manifest": dict(manifest), "summary": dict(summary),
-                   "cells": cell_coverage(rows)}, fh, indent=1,
-                  ensure_ascii=False, default=str)
+        json.dump(
+            {
+                "manifest": dict(manifest),
+                "summary": dict(summary),
+                "cells": cell_coverage(rows),
+            },
+            fh,
+            indent=1,
+            ensure_ascii=False,
+            default=str,
+        )
     os.replace(tmp, js)
     paths["json"] = js
     md = os.path.join(outdir, "summary.md")
@@ -1706,8 +2368,9 @@ def write_outputs(rows: Sequence[Row], summary: Mapping[str, Any],
 # ==========================================================================
 # 10. Komut satırı
 # ==========================================================================
-def select_cells(groups: Sequence[str], max_n: Optional[int],
-                 ratios: Optional[Sequence[int]]) -> List[Cell]:
+def select_cells(
+    groups: Sequence[str], max_n: Optional[int], ratios: Optional[Sequence[int]]
+) -> List[Cell]:
     cells = [c for c in matrix.feasible_cells() if c.group in groups]
     if max_n is not None:
         cells = [c for c in cells if c.n <= max_n]
@@ -1718,24 +2381,29 @@ def select_cells(groups: Sequence[str], max_n: Optional[int],
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="BB-CVC deney süpürmesi")
-    ap.add_argument("--groups", default="small",
-                    help="small,medium,large (virgülle)")
+    ap.add_argument("--groups", default="small", help="small,medium,large (virgülle)")
     ap.add_argument("--max-n", type=int, default=None)
     ap.add_argument("--ratios", default="", help="ör. 2,4")
     ap.add_argument("--max-seeds", type=int, default=3)
     ap.add_argument("--k", type=int, default=4)
     ap.add_argument("--loss", type=float, default=0.0)
     ap.add_argument("--max-ms", type=int, default=600_000)
-    ap.add_argument("--mis-nbrs-max", type=int, default=32,
-                    help="HELLO'daki MIS komşusu üst sınırı; 5 (UDG varsayılanı) "
-                         "kıyas kümesinde ÇALIŞMAZ")
+    ap.add_argument(
+        "--mis-nbrs-max",
+        type=int,
+        default=32,
+        help="HELLO'daki MIS komşusu üst sınırı; 5 (UDG varsayılanı) "
+        "kıyas kümesinde ÇALIŞMAZ",
+    )
     ap.add_argument("--schedulers", default="sync,async")
     ap.add_argument("--variants", default="", help="boşsa hepsi")
     ap.add_argument("--time-budget-s", type=float, default=None)
-    ap.add_argument("--synthetic", action="store_true",
-                    help="veri kümesi yerine üretilmiş çizge (source=synthetic)")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="yalnız ne koşulacağını yaz")
+    ap.add_argument(
+        "--synthetic",
+        action="store_true",
+        help="veri kümesi yerine üretilmiş çizge (source=synthetic)",
+    )
+    ap.add_argument("--dry-run", action="store_true", help="yalnız ne koşulacağını yaz")
     ap.add_argument("--out", default="results/bb/sweep")
     a = ap.parse_args(argv)
 
@@ -1754,44 +2422,69 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return 2
 
     if a.synthetic:
-        instances = [synthetic_instance(c, s)
-                     for c in cells for s in range(a.max_seeds)]
+        instances = [
+            synthetic_instance(c, s) for c in cells for s in range(a.max_seeds)
+        ]
         dsdir = None
     else:
         dsdir = matrix.dataset_dir()
         if dsdir is None:
-            print("HATA: Dagdeviren veri kümesi bulunamadı. Kıyas modu "
-                  "sentetiğe DÜŞMEZ; --synthetic ile açıkça iste ya da "
-                  f"{matrix.DATASET_ENV} ayarla.", file=sys.stderr)
+            print(
+                "HATA: Dagdeviren veri kümesi bulunamadı. Kıyas modu "
+                "sentetiğe DÜŞMEZ; --synthetic ile açıkça iste ya da "
+                f"{matrix.DATASET_ENV} ayarla.",
+                file=sys.stderr,
+            )
             return 2
         instances = dataset_instances(cells, max_seeds=a.max_seeds, directory=dsdir)
 
     entries = plan(instances, specs, schedulers=schedulers)
-    print(f"hücre: {len(cells)}  örnek: {len(instances)}  kol: "
-          f"{len(specs)}×{len(schedulers)}  koşum: {len(entries)}")
+    print(
+        f"hücre: {len(cells)}  örnek: {len(instances)}  kol: "
+        f"{len(specs)}×{len(schedulers)}  koşum: {len(entries)}"
+    )
     if a.dry_run:
         for c in cell_coverage([]) or []:
             pass
         for s in specs:
-            print(f"  kol {s.name}/{s.schedulers} "
-                  f"family={s.family} phase1={s.phase1} phase5={s.phase5}")
+            print(
+                f"  kol {s.name}/{s.schedulers} "
+                f"family={s.family} phase1={s.phase1} phase5={s.phase5}"
+            )
         for na, nb, ax in matched_pairs(specs, schedulers):
             print(f"  eşleşmiş: {na} <-> {nb} ({ax})")
         return 0
 
-    opts = SweepOptions(k=a.k, loss=a.loss, max_ms=a.max_ms,
-                        mis_nbrs_max=a.mis_nbrs_max,
-                        time_budget_s=a.time_budget_s)
+    opts = SweepOptions(
+        k=a.k,
+        loss=a.loss,
+        max_ms=a.max_ms,
+        mis_nbrs_max=a.mis_nbrs_max,
+        time_budget_s=a.time_budget_s,
+    )
     t0 = time.time()
-    rows = sweep(instances, specs, schedulers=schedulers, opts=opts,
-                 progress=lambda s: print(s, flush=True))
+    rows = sweep(
+        instances,
+        specs,
+        schedulers=schedulers,
+        opts=opts,
+        progress=lambda s: print(s, flush=True),
+    )
     manifest = {
-        "dataset_dir": dsdir, "source": "synthetic" if a.synthetic else "dataset",
-        "groups": ",".join(groups), "max_n": a.max_n, "ratios": a.ratios or "hepsi",
-        "max_seeds": a.max_seeds, "k": a.k, "loss": a.loss, "max_ms": a.max_ms,
-        "schedulers": ",".join(schedulers), "mis_nbrs_max": a.mis_nbrs_max,
+        "dataset_dir": dsdir,
+        "source": "synthetic" if a.synthetic else "dataset",
+        "groups": ",".join(groups),
+        "max_n": a.max_n,
+        "ratios": a.ratios or "hepsi",
+        "max_seeds": a.max_seeds,
+        "k": a.k,
+        "loss": a.loss,
+        "max_ms": a.max_ms,
+        "schedulers": ",".join(schedulers),
+        "mis_nbrs_max": a.mis_nbrs_max,
         "variants": ",".join(s.name for s in specs),
-        "rows": len(rows), "seconds": round(time.time() - t0, 1),
+        "rows": len(rows),
+        "seconds": round(time.time() - t0, 1),
     }
     summary = summarize(rows, specs=specs, schedulers=schedulers)
     paths = write_outputs(rows, summary, manifest, a.out)

@@ -183,15 +183,17 @@ def run_greedy(edges, weights, k, *, algorithm="gccvc", scheduler="sync", params
 
 def _specs():
     from ccvc.bb import armnames
-    from ccvc.bb.sweep import VariantSpec
+    from ccvc.bb.sweep import VariantSpec, with_overrides
     specs = []
     for algorithm in RULES:
         def run(request, rule=algorithm):
             return run_greedy(request.edges, request.weights, request.k,
                               algorithm=rule, scheduler=request.scheduler,
                               seed=request.seed, loss=request.loss, max_ms=request.max_ms,
-                              params=GreedyParams(algorithm=rule,
-                                                  mis_nbrs_max=request.mis_nbrs_max))
+                              params=with_overrides(
+                                  GreedyParams(algorithm=rule,
+                                               mis_nbrs_max=request.mis_nbrs_max),
+                                  request))
         # The arm name says which score the rule maximises, because that is the
         # ONLY thing separating the three; `armnames` owns the spelling so the
         # sweep, the audit table and the legacy translation cannot drift apart.

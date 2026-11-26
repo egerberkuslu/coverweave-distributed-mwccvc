@@ -28,7 +28,7 @@ import os
 import struct
 import sys
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 try:
     from ccvc.bb import wire
@@ -171,6 +171,14 @@ class BootstrapParams:
     window and returned NO COVER AT ALL.
     """
     link_max_attempts: int = 3  # brief §3.4: R_max
+    link_rounds_max: int = 4
+    """G4 (note to Amendment 15): handshake rounds a heard, unverified link is
+    waited for, at the freeze gate and at DONE alike, before it is treated as
+    one-way for the epoch. A round is `link_max_attempts` LINKs; the next round
+    starts `link_retry_after_periods` later on the next HELLO. The freeze gate
+    used to wait only for a round in progress, so a link that failed one round
+    was verified after the freeze and its success restarted the epoch; at
+    n = 100 some link always did (restart loop, Amendment 15)."""
     link_retry_after_periods: int = 12
     """How long an exhausted handshake stays exhausted, in HELLO periods.
 
@@ -226,6 +234,18 @@ class BootstrapParams:
     """
     hello_jitter_ms: int = 0  # xorshift32 ile; 0 = tam deterministik
     gate_waits_for_pending_links: bool = True
+    adaptive_stale: bool = True
+    """Repair F9 (R1, Amendment 6): one stale window per neighbour.
+
+    Every window starts at `stale_periods`. When a neighbour whose record
+    expired is heard again, the expiry was a false suspicion and that
+    neighbour's window doubles, up to `stale_periods_cap`. MEASURED without it
+    under Gilbert-Elliott loss (10 per cent, mean burst 4 frames): a burst of
+    three lost HELLOs expired a record, the view change restarted the whole
+    network about every 1.8 s, and 67 of 72 development runs hit the time
+    limit. Off, the protocol is exactly the fixed-window one.
+    """
+    stale_periods_cap: int = 48
 
     @property
     def t_stale_ms(self) -> int:
@@ -263,6 +283,7 @@ class BootNeighbor(Neighbor):
     link_attempts: int = 0
     link_next_ms: int = 0
     link_seq: int = 0
+    link_rounds: int = 0    # G4: failed handshake rounds in this epoch
 
     @property
     def is_edge(self) -> bool:
@@ -364,6 +385,13 @@ class BootstrapNode(NodeCore):
         self.phase = 0
         self.role = Role.OUT
         self.load = 0
+        #: HELLO's open-barrier flag (repair F2); the BB-CVC layer sets it.
+        self.barrier_open = False
+        #: HELLO's infeasible flag (repair F12); the BB-CVC layer sets it.
+        self.infeasible = False
+        #: HELLO's confirm request and echo block (repair F15); the BB-CVC layer sets them.
+        self.hello_confirm = False
+        self.hello_echo: Tuple[Tuple[int, int, int], ...] = ()
 
         # bootstrap'ın ürettiği iki değer; ikisi de başta BİLİNMİYOR
         self.deg: Optional[int] = None
@@ -388,6 +416,18 @@ class BootstrapNode(NodeCore):
         self._rng = xorshift32(self.mac & 0xFFFFFFFF)
         self.id_rederivations = 0
         self.epoch_bumps = 0
+        #: F9. Neighbour -> its grown stale window in periods (absent = the
+        #: default), and the neighbours whose record expired and that have not
+        #: been heard since. Both describe the LINK, so an epoch restart keeps
+        #: them.
+        self._stale_p: Dict[int, int] = {}
+        self._expired: Set[int] = set()
+        #: Epoch increments this node has gone through, unwrapped (the epoch
+        #: byte wraps at 256). Bumped or adopted alike; a run's restart count
+        #: is the largest value over its nodes.
+        self.epoch_advance = 0
+        #: G2: LINK asks heard before the asker's HELLO, id -> (mac, seq).
+        self._link_asks: Dict[int, Tuple[int, int]] = {}
         self.rssi_implausible = 0
         self._diff_since_ms: Optional[int] = None
         """Peers whose RSSI channel was condemned as unreadable.
@@ -507,8 +547,19 @@ class BootstrapNode(NodeCore):
         return frozenset(n.nid for n in self.nbrs.values() if n.is_edge)
 
     def _pending_links(self) -> bool:
+        """Is a handshake still owed before my view may freeze?
+
+        A round in progress, or (G4, note to Amendment 15) a heard, link-up,
+        unverified neighbour whose handshake has failed fewer than
+        `link_rounds_max` rounds in this epoch: its next round comes on its next
+        HELLO after the cooldown. The same bound as `BbcvcNode._unverified_pending`.
+        """
+        now = self.plat.now_ms()
         return any(
-            n.awaiting_ack and n.link_attempts < self.p.link_max_attempts
+            (n.awaiting_ack and n.link_attempts < self.p.link_max_attempts)
+            or (n.link_up and not n.bidir
+                and n.link_rounds < self.p.link_rounds_max
+                and now - n.last_ms <= self.stale_ms(n.nid))
             for n in self.nbrs.values()
         )
 
@@ -567,6 +618,10 @@ class BootstrapNode(NodeCore):
                 load=self.load,
                 epoch=self.epoch,
                 mis_nbrs=mis_nbrs,
+                barrier_open=self.barrier_open,
+                infeasible=self.infeasible,
+                confirm=self.hello_confirm,
+                echo=self.hello_echo,
             )
         )
 
@@ -613,6 +668,7 @@ class BootstrapNode(NodeCore):
 
         # (2) epoch: büyük epoch gören sıfırlar ve benimser (max-gossip)
         if epoch_newer(h.epoch, self.epoch):
+            self.epoch_advance += (h.epoch - self.epoch) & 0xFF
             self.epoch = h.epoch
             self._reset_to_phase0(now, reason="epoch_adopt")
 
@@ -634,6 +690,12 @@ class BootstrapNode(NodeCore):
             # bir `return` eklenmesi bunu sessizce bozardı.
             nbr = BootNeighbor(nid=h.src, mac=src_mac, last_ms=now)
             self.nbrs[h.src] = nbr
+            if h.src in self._expired:
+                # F9: it was not gone; its silence outlasted my window.
+                self._expired.discard(h.src)
+                cur = self._stale_p.get(h.src, self.p.stale_periods)
+                self._stale_p[h.src] = max(cur, min(self.p.stale_periods_cap, 2 * cur))
+                self._log("stale_window_grown", peer=h.src, periods=self._stale_p[h.src])
         elif nbr.mac != src_mac:
             # aynı id, iki farklı yabancı MAC: bizi ilgilendirmez, ama kaydı
             # kirletmesin diye yenisini yok sayıp olayı günlüğe yazarız.
@@ -642,6 +704,11 @@ class BootstrapNode(NodeCore):
 
         was_up = nbr.link_up
         self._apply_rssi(nbr, rssi)
+        ask = self._link_asks.pop(h.src, None)
+        if ask is not None and ask[0] == src_mac and nbr.link_up:
+            nbr.last_ack_seq = ask[1]   # G2: the deferred answer
+            self.plat.send_unicast(
+                src_mac, wire.encode(wire.Ctrl(MsgType.LINK_ACK, self.nid, ask[1])))
         nbr.last_ms = now
         nbr.key = h.key
         nbr.role = h.role
@@ -736,6 +803,7 @@ class BootstrapNode(NodeCore):
             if nbr.link_attempts >= self.p.link_max_attempts:
                 nbr.awaiting_ack = False
                 nbr.link_failed = True
+                nbr.link_rounds += 1   # G4: rounds of this epoch, bounds F13's wait
                 nbr.link_retry_ms = now + self.p.link_retry_after_ms
                 self._log("link_gave_up", peer=nbr.nid, attempts=nbr.link_attempts)
                 continue
@@ -762,6 +830,13 @@ class BootstrapNode(NodeCore):
             # onun tekrarları burada görünmez. Sınırlı ve bilerek sınırlı:
             # alternatifi sınırsız bir ACK önbelleğidir, malloc yasaktır.
             peer = self.nbrs.get(nid)
+            if peer is None or peer.mac != src_mac or not peer.link_up:
+                # G2 (Amendment 13): only a node that hears the asker confirms
+                # the link. An ask that comes before the asker's HELLO is
+                # answered when that HELLO opens the record.
+                if peer is None and len(self._link_asks) < self.p.nbr_table_max:
+                    self._link_asks[nid] = (src_mac, seq)
+                return
             if peer is not None:
                 if peer.last_ack_seq == seq:
                     self._log("retx", n=1, kind="link_ack", peer=nid, seq=seq)
@@ -784,13 +859,38 @@ class BootstrapNode(NodeCore):
             self._log("bidir", peer=nid)
 
     # ------------------------------------------------------------ soft state
+    def stale_ms(self, nid: int) -> int:
+        """This neighbour's stale window (F9): the default until it grows."""
+        return self._stale_p.get(nid, self.p.stale_periods) * self.p.t_hello_ms
+
+    def _restart_wait_ms(self, bidir: frozenset) -> int:
+        """How long a view difference must persist before an epoch restart.
+
+        F9: a frozen neighbour that is missing and whose window has grown is
+        waited for over its own stale window; otherwise T_stab, as before. With
+        the defaults (stale = stab = 3) that is the neighbour's stale window in
+        every case, and a neighbour that never returns is detected after at
+        most twice its window, so within twice the cap.
+        """
+        missing = (self._frozen_bidir or frozenset()) - bidir
+        grown = [self.stale_ms(i) for i in missing if i in self._stale_p]
+        return max([self.p.t_stab_ms] + grown)
+
+    def _expiry_ms(self, nbr: BootNeighbor) -> Optional[int]:
+        """After how much silence this record expires; None = not now (F13)."""
+        return self.stale_ms(nbr.nid)
+
     def _expire(self, now: int) -> None:
-        stale = [
-            n.nid for n in self.nbrs.values() if now - n.last_ms > self.p.t_stale_ms
-        ]
+        stale = []
+        for n in self.nbrs.values():
+            window = self._expiry_ms(n)
+            if window is not None and now - n.last_ms > window:
+                stale.append(n.nid)
         for nid in stale:
             self._log("nbr_expired", peer=nid, age=now - self.nbrs[nid].last_ms)
             del self.nbrs[nid]
+            if self.p.adaptive_stale:
+                self._expired.add(nid)
 
     # ------------------------------------------------ kararlılık kapısı + epoch
     def _gate(self, now: int, bidir: frozenset) -> None:
@@ -836,10 +936,11 @@ class BootstrapNode(NodeCore):
             if self._diff_since_ms is None:
                 self._diff_since_ms = now
                 return
-            if now - self._diff_since_ms < self.p.t_stab_ms:
+            if now - self._diff_since_ms < self._restart_wait_ms(bidir):
                 return
             self.epoch = (self.epoch + 1) & 0xFF
             self.epoch_bumps += 1
+            self.epoch_advance += 1
             self._log("epoch_bump", epoch=self.epoch)
             self._reset_to_phase0(now, reason="bidir_changed")
             return
@@ -866,6 +967,16 @@ class BootstrapNode(NodeCore):
         self.stable_since_ms = now
         self._diff_since_ms = None
         self._log("reset_phase0", reason=reason, epoch=self.epoch)
+        # G2 (Amendment 13): verification belongs to an epoch. A record kept
+        # across the restart is verified again, so a link the other end has
+        # lost cannot enter the new frozen view on one side only.
+        for nbr in self.nbrs.values():
+            nbr.bidir = False
+            nbr.awaiting_ack = False
+            nbr.link_failed = False
+            nbr.link_rounds = 0
+            if nbr.link_up:
+                self._start_link(now, nbr)
 
     def _rederive_id(self, now: int, other_mac: int) -> None:
         """Kimlik çakışması: BÜYÜK MAC tuzlu hash ile yeniden karar verir.
@@ -880,6 +991,7 @@ class BootstrapNode(NodeCore):
         self.nbrs.clear()
         self.epoch = (self.epoch + 1) & 0xFF
         self.epoch_bumps += 1
+        self.epoch_advance += 1
         self._reset_to_phase0(now, reason="id_collision")
         self._last_hello_ms = None  # yeni kimliği hemen duyur
         self._log(

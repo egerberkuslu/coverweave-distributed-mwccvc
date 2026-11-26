@@ -271,6 +271,7 @@ def test_a_sleeping_node_defers_a_test_instead_of_dropping_it():
     peer = next(n for n in node.nbrs.values() if n.is_edge)
     node.ghs_state = 0                      # SLEEPING
     node.ghs_deferred = []
+    node.phase = 1  # Amendment 13, G6: deferral belongs to phase 1 (PH_MIS)
     sent_before = len(getattr(node, "_sent_log", []) or [])
     node._ghs_on_test(0, peer, 1, 12345)
     assert node.ghs_deferred, "the question was dropped, not deferred"

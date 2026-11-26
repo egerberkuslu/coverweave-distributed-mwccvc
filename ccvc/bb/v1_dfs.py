@@ -74,10 +74,12 @@ def run_v1(edges, weights, k: int, *, scheduler: str = "sync",
 
 
 def _spec_run(req) -> Any:
+    from ccvc.bb.sweep import with_overrides
+
     p = BbcvcParams()
     p.mis_nbrs_max = req.mis_nbrs_max
     return run_v1(list(req.edges), dict(req.weights), req.k,
-                  scheduler=req.scheduler, params=p,
+                  scheduler=req.scheduler, params=with_overrides(p, req),
                   max_ms=req.max_ms, seed=req.seed, loss=req.loss)
 
 

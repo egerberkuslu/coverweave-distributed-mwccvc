@@ -9,16 +9,40 @@ PRINCIPLES
     `payload[0]` so the network layer can read it without decoding the body.
 
 SIZES (measured; `sizes()` reproduces them)
-  HELLO   13 B (mis_nbrs empty) .. 23 B (the five MIS neighbours of brief G8)
+  HELLO   13 B (mis_nbrs empty) .. 23 B (the five MIS neighbours of brief G8),
+          plus a 1 B count and 4 B per echo entry, at most ECHO_MAX = 2
+          entries (F15): 32 B
   LINK / LINK_ACK              5 B
   TOKEN / TOKEN_DONE           7 B  (seq + init)
-  JOIN / JOIN_ACK              6 B
-  HANDOVER/ACK/NACK, PUSH/ACK/NACK  10 B
+  JOIN / JOIN_ACK              7 B  (seq + code + epoch)
+  BB_MIS                       6 B  (the Join body without the epoch byte)
+  HANDOVER/ACK/NACK, PUSH/ACK/NACK  11 B  (seq + u + v + ttl + epoch)
   TREE                        10 B
   STABLE                      25 B
   FINISH                       8 B
-None of these depend on density; the only variable-length field is HELLO's
-`mis_nbrs` array, and G8 caps that at five.
+None of these depend on density; the only variable-length fields are HELLO's
+`mis_nbrs` array, which G8 caps at five, and its echo block (F15), which the
+producer caps at ECHO_MAX entries.
+
+EPOCH BYTE AND BARRIER FLAG (R1 repairs F3 and F2)
+  JOIN, JOIN_ACK and the six edge types carry the sender's one-byte epoch, so a
+  request or reply that outlived an epoch restart is recognisable and dropped
+  by the receiver (`EPOCH_TYPES`). HELLO carries the DONE node's open-barrier
+  flag in bit 7 of the role byte, which roles (0..3) never use, so HELLO keeps
+  its 13 B.
+
+CONFIRMED STATE (R1 repair F15)
+  A node whose role or forced load changes after its DONE HELLO sets bit 5 of
+  the role byte (confirm) in the HELLO that announces it, and again once per
+  stale window until every frozen neighbour has echoed the new value. A
+  neighbour echoes in its next HELLO: bit 4 marks an echo block after mis_nbrs,
+  a count byte and 4 B per entry (neighbour id, role, load as last heard). A
+  HELLO without either keeps its size.
+
+IN-NETWORK INFEASIBILITY CERTIFICATE (R1 repair F12b, spanning-tree arm only)
+  GHS_REPORT carries its subtree's sum of min(deg, k), sum of deg and node
+  count (`_GHS_CERT`, 10 B: GHS_REPORT 15 -> 25 B). HELLO carries a node's
+  infeasible flag in bit 6 of the role byte, so HELLO keeps its 13 B.
 
 THE 250 B CEILING IS SELF-IMPOSED AND IT NEVER BINDS.
   250 B is the ESP-NOW limit. The target platform is mininet-wifi, where the
@@ -68,6 +92,10 @@ KEY_NONE = -(2 ** 31)
 # brief G8: the number of MIS neighbours carried in a HELLO is fixed and small.
 # The wire does NOT enforce this; the wire enforces only the 250 B ceiling.
 MIS_NBRS_SOFT_MAX = 5
+#: F15: echo entries one HELLO carries; the producer keeps the rest for its next
+#: HELLO. Measured with every change confirmed, on 12 lossless development runs:
+#: with one entry five took longer (sync: +6 and +12 slots), with two none did.
+ECHO_MAX = 2
 
 # ANNEAL block (brief section 6.5 / .tex section 13): an OPTIONAL 8-byte tail
 # appended to a HELLO. A bare HELLO stays 13 B, so BB-CVC and bootstrap are
@@ -87,9 +115,10 @@ _HDR = struct.Struct("<BH")
 # HELLO body: key(4, signed 16.16) + deg(1) + role(1) + phase(1)
 #             + load(1) + epoch(1) + mis_nbrs count(1). All unsigned.
 _HELLO_BODY = struct.Struct("<iBBBBBB")
+_ECHO = struct.Struct("<HBB")            # F15: neighbour id, role, load
 _SEQ = struct.Struct("<H")
 _U8 = struct.Struct("<B")
-_EDGE = struct.Struct("<HHB")            # u, v, ttl
+_EDGE = struct.Struct("<HHBB")           # u, v, ttl, epoch
 _TOKEN_BODY = struct.Struct("<HH")       # seq, init
 _TREE_BODY = struct.Struct("<HHHB")      # seq, root, parent, depth
 #: seq, root, subtree, tx, rx, bytes_tx, weight_fp.
@@ -124,6 +153,14 @@ class Hello:
     epoch: int = 0
     mis_nbrs: Tuple[int, ...] = ()
     anneal: Optional["Anneal"] = None    # populated only on Anneal-Local runs
+    #: A DONE node whose barrier is still open (repair F2). Bit 7 of the role byte.
+    barrier_open: bool = False
+    #: The sender certified the instance infeasible (repair F12b). Bit 6.
+    infeasible: bool = False
+    #: F15: the sender asks its flexible neighbours to echo its role and load.
+    confirm: bool = False
+    #: F15: (neighbour id, role, load) as last heard, for each neighbour that asked.
+    echo: Tuple[Tuple[int, int, int], ...] = ()
 
     mtype: MsgType = MsgType.HELLO
 
@@ -198,12 +235,16 @@ class Token:
 
 @dataclass
 class Join:
-    """JOIN and JOIN_ACK. `code` is the reason on JOIN, the accept flag on JOIN_ACK."""
+    """JOIN and JOIN_ACK. `code` is the reason on JOIN, the accept flag on JOIN_ACK.
+
+    `epoch` travels on JOIN and JOIN_ACK only; BB_MIS shares this body without it.
+    """
 
     mtype: MsgType
     src: int
     seq: int
     code: int = 0
+    epoch: int = 0
 
 
 @dataclass
@@ -220,6 +261,10 @@ class EdgeMsg:
     u: int
     v: int
     ttl: int = 0
+    epoch: int = 0
+    #: G7 (Amendment 13): the sender's transfer version of the edge, carried by
+    #: the two requests HANDOVER and PUSH only (one byte, modulo 256).
+    gen: int = 0
 
 
 @dataclass
@@ -286,6 +331,9 @@ class Ghs:
     level: int = 0
     frag: int = 0
     wfp: int = 0
+    #: GHS_REPORT only (repair F12b): the subtree's (sum of min(deg, k), sum of
+    #: deg, node count). Encoded on every REPORT, absent on the other six.
+    cert: Optional[Tuple[int, int, int]] = None
 
 
 Message = Union[Hello, GreedyState, Ctrl, Token, Join, EdgeMsg, Tree, Stable, Finish, Ghs]
@@ -301,8 +349,22 @@ _TOKEN_TYPES = (MsgType.TOKEN, MsgType.TOKEN_DONE, MsgType.DFS_DONE)
 #: BB_MIS rides the Join body: it needs one small code (claim / withdraw)
 #: and nothing else, which is exactly what that body already carries.
 _JOIN_TYPES = (MsgType.JOIN, MsgType.JOIN_ACK, MsgType.BB_MIS)
+_EPOCH_JOIN_TYPES = (MsgType.JOIN, MsgType.JOIN_ACK)
 _EDGE_TYPES = (MsgType.HANDOVER, MsgType.HANDOVER_ACK, MsgType.HANDOVER_NACK,
-               MsgType.PUSH, MsgType.PUSH_ACK, MsgType.PUSH_NACK)
+               MsgType.PUSH, MsgType.PUSH_ACK, MsgType.PUSH_NACK,
+               MsgType.CERT, MsgType.CERT_ACK)   # F17 reuses the 11 B body
+#: G7 (Amendment 13): the requests that carry the edge's transfer version.
+_GEN_TYPES = (MsgType.HANDOVER, MsgType.PUSH)
+#: The types whose body carries the sender's epoch (repair F3).
+EPOCH_TYPES = _EPOCH_JOIN_TYPES + _EDGE_TYPES
+#: HELLO's role byte: roles use the low bits, bit 7 is the open-barrier flag,
+#: bit 6 the infeasible flag, bit 5 the confirm request and bit 4 marks the
+#: echo block (F15).
+_HELLO_BARRIER_OPEN = 0x80
+_HELLO_INFEASIBLE = 0x40
+_HELLO_CONFIRM = 0x20
+_HELLO_ECHO = 0x10
+_HELLO_FLAGS = _HELLO_BARRIER_OPEN | _HELLO_INFEASIBLE | _HELLO_CONFIRM | _HELLO_ECHO
 _GHS_TYPES = (MsgType.GHS_CONNECT, MsgType.GHS_INITIATE, MsgType.GHS_TEST,
               MsgType.GHS_ACCEPT, MsgType.GHS_REJECT, MsgType.GHS_REPORT,
               MsgType.GHS_CHANGE_ROOT)
@@ -315,6 +377,7 @@ _GHS_TYPES = (MsgType.GHS_CONNECT, MsgType.GHS_INITIATE, MsgType.GHS_TEST,
 #: outgoing edge, and the fragments halted without ever merging -- a spanning
 #: tree that did not span. Measured, not hypothesised.
 _GHS_BODY = struct.Struct("<HHii")
+_GHS_CERT = struct.Struct("<IIH")        # F12b, GHS_REPORT only
 
 
 # --------------------------------------------------------------------------
@@ -374,13 +437,19 @@ def encode(msg: Message) -> bytes:
                + _GHS_BODY.pack(msg.seq, msg.level,
                                 _exact_int(msg.frag, "Ghs.frag"),
                                 _exact_int(msg.wfp, "Ghs.wfp")))
+        if msg.mtype is MsgType.GHS_REPORT:
+            out += _GHS_CERT.pack(*(msg.cert or (0, 0, 0)))
     elif isinstance(msg, Join):
         _check_type(msg.mtype, _JOIN_TYPES)
         out = _HDR.pack(int(msg.mtype), msg.src) + _SEQ.pack(msg.seq) + _U8.pack(msg.code)
+        if msg.mtype in _EPOCH_JOIN_TYPES:
+            out += _U8.pack(msg.epoch)
     elif isinstance(msg, EdgeMsg):
         _check_type(msg.mtype, _EDGE_TYPES)
         out = (_HDR.pack(int(msg.mtype), msg.src) + _SEQ.pack(msg.seq)
-               + _EDGE.pack(msg.u, msg.v, msg.ttl))
+               + _EDGE.pack(msg.u, msg.v, msg.ttl, msg.epoch))
+        if msg.mtype in _GEN_TYPES:
+            out += _U8.pack(msg.gen & 0xFF)
     elif isinstance(msg, Tree):
         out = (_HDR.pack(int(MsgType.TREE), msg.src)
                + _TREE_BODY.pack(msg.seq, msg.root, msg.parent, msg.depth))
@@ -402,6 +471,8 @@ def _encode_hello(msg: Hello) -> bytes:
     # Size is computed FIRST: even when n does not fit a single byte the error
     # must be PayloadTooLarge rather than struct.error. Nothing is ever truncated.
     tail = ANNEAL_BYTES if msg.anneal is not None else 0
+    if msg.echo:
+        tail += _U8.size + _ECHO.size * len(msg.echo)
     _guard(_HELLO_FIXED + 2 * n + tail, MsgType.HELLO)
     if msg.key is None:
         key = KEY_NONE
@@ -414,10 +485,22 @@ def _encode_hello(msg: Hello) -> bytes:
         if not (-(2 ** 31) < key < 2 ** 31):
             raise ValueError(f"key does not fit the signed 32-bit range: {key}")
     role = _exact_int(msg.role, "role")
+    if not 0 <= role < _HELLO_ECHO:
+        raise ValueError(f"role does not fit the low 4 bits of its byte: {role}")
+    if msg.barrier_open:
+        role |= _HELLO_BARRIER_OPEN
+    if msg.infeasible:
+        role |= _HELLO_INFEASIBLE
+    if msg.confirm:
+        role |= _HELLO_CONFIRM
+    if msg.echo:
+        role |= _HELLO_ECHO
     out = (_HDR.pack(int(MsgType.HELLO), msg.src)
            + _HELLO_BODY.pack(key, msg.deg, role, msg.phase,
                               msg.load, msg.epoch, n)
            + struct.pack(f"<{n}H", *msg.mis_nbrs))
+    if msg.echo:
+        out += _U8.pack(len(msg.echo)) + b"".join(_ECHO.pack(*e) for e in msg.echo)
     if msg.anneal is not None:
         a = msg.anneal
         cool = _exact_int(a.cool, "anneal.cool")
@@ -467,6 +550,12 @@ def decode(payload: bytes) -> Message:
         key, deg, role, phase, load, epoch, n = _HELLO_BODY.unpack_from(payload, off)
         off += _HELLO_BODY.size
         need = off + 2 * n
+        echo = ()
+        if role & _HELLO_ECHO:
+            (cnt,) = _U8.unpack_from(payload, need)
+            echo = tuple(_ECHO.unpack_from(payload, need + 1 + _ECHO.size * i)
+                         for i in range(cnt))
+            need += _U8.size + _ECHO.size * cnt
         extra = len(payload) - need
         if extra not in (0, ANNEAL_BYTES):
             raise ValueError(
@@ -479,8 +568,12 @@ def decode(payload: bytes) -> Message:
             ann = Anneal(x=bool(flags & 1), ell_fp=ell, label=label,
                          label_ctr=lctr, token=token, cool=flags >> 1)
         return Hello(src=src, key=None if key == KEY_NONE else key, deg=deg,
-                     role=Role(role), phase=phase, load=load, epoch=epoch,
-                     mis_nbrs=tuple(mis), anneal=ann)
+                     role=Role(role & ~_HELLO_FLAGS),
+                     phase=phase, load=load,
+                     epoch=epoch, mis_nbrs=tuple(mis), anneal=ann,
+                     barrier_open=bool(role & _HELLO_BARRIER_OPEN),
+                     infeasible=bool(role & _HELLO_INFEASIBLE),
+                     confirm=bool(role & _HELLO_CONFIRM), echo=echo)
 
     if mtype in _CTRL_TYPES:
         (seq,) = _SEQ.unpack_from(payload, off)
@@ -492,17 +585,28 @@ def decode(payload: bytes) -> Message:
 
     if mtype in _GHS_TYPES:
         seq, level, frag, wfp = _GHS_BODY.unpack_from(payload, off)
-        return Ghs(mtype=mtype, src=src, seq=seq, level=level, frag=frag, wfp=wfp)
+        cert = None
+        if mtype is MsgType.GHS_REPORT:
+            cert = _GHS_CERT.unpack_from(payload, off + _GHS_BODY.size)
+        return Ghs(mtype=mtype, src=src, seq=seq, level=level, frag=frag, wfp=wfp,
+                   cert=cert)
 
     if mtype in _JOIN_TYPES:
         (seq,) = _SEQ.unpack_from(payload, off)
         (code,) = _U8.unpack_from(payload, off + _SEQ.size)
-        return Join(mtype=mtype, src=src, seq=seq, code=code)
+        epoch = 0
+        if mtype in _EPOCH_JOIN_TYPES:
+            (epoch,) = _U8.unpack_from(payload, off + _SEQ.size + _U8.size)
+        return Join(mtype=mtype, src=src, seq=seq, code=code, epoch=epoch)
 
     if mtype in _EDGE_TYPES:
         (seq,) = _SEQ.unpack_from(payload, off)
-        u, v, ttl = _EDGE.unpack_from(payload, off + _SEQ.size)
-        return EdgeMsg(mtype=mtype, src=src, seq=seq, u=u, v=v, ttl=ttl)
+        u, v, ttl, epoch = _EDGE.unpack_from(payload, off + _SEQ.size)
+        gen = 0
+        if mtype in _GEN_TYPES:
+            (gen,) = _U8.unpack_from(payload, off + _SEQ.size + _EDGE.size)
+        return EdgeMsg(mtype=mtype, src=src, seq=seq, u=u, v=v, ttl=ttl, epoch=epoch,
+                       gen=gen)
 
     if mtype is MsgType.TREE:
         seq, root, parent, depth = _TREE_BODY.unpack_from(payload, off)
@@ -523,9 +627,10 @@ def decode(payload: bytes) -> Message:
 # --------------------------------------------------------------------------
 # measurement helpers
 # --------------------------------------------------------------------------
-def hello_size(n_mis: int, anneal: bool = False) -> int:
-    """Byte size of a HELLO carrying n_mis MIS neighbours."""
-    return _HELLO_FIXED + 2 * n_mis + (ANNEAL_BYTES if anneal else 0)
+def hello_size(n_mis: int, anneal: bool = False, echo: int = 0) -> int:
+    """Byte size of a HELLO carrying n_mis MIS neighbours and `echo` echo entries."""
+    return (_HELLO_FIXED + 2 * n_mis + (ANNEAL_BYTES if anneal else 0)
+            + (_U8.size + _ECHO.size * echo if echo else 0))
 
 
 def sizes() -> Dict[str, int]:

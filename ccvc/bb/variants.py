@@ -568,13 +568,16 @@ class V1DfsNode(BbcvcNode):
         return None
 
     def dfs_on_token(self, init: int, sender: int) -> str:
-        """Bir TOKEN geldi. 'accept' | 'reject' | 'preempt' kararı ver."""
+        """Bir TOKEN geldi. 'accept' | 'reject' | 'preempt' | 'ignore' kararı ver."""
         if self.dfs_init is None:
             return "accept"  # hiç gezintiye ait değilim
         if init < self.dfs_init:
             return "preempt"  # daha küçük başlatıcı kazanır
         if init > self.dfs_init:
-            return "reject"  # kendi gezintim daha iyi
+            # Extinction (Tel, ch. 7): a larger walk dies on contact. Bouncing
+            # it let it run on, finish early, and ping-pong once both ends
+            # had been absorbed (R19, F19).
+            return "ignore"
         return "reject" if self.dfs_visited_in(init) else "accept"
 
     def dfs_visited_in(self, init: int) -> bool:
@@ -689,6 +692,8 @@ class V1DfsNode(BbcvcNode):
             self.dfs_holding = True
             return
         decision = self.dfs_on_token(msg.init, n.nid)
+        if decision == "ignore":
+            return
         if decision == "reject":
             self._v1_send_token(now, n, MsgType.TOKEN, msg.init)   # bounce back
             return

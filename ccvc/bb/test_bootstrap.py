@@ -632,7 +632,9 @@ def test_asymmetric_link_never_becomes_an_edge():
         [(1, 2), (1, 3), (2, 3)],
         drop=lambda t, u, v, mt: (u == 1 and v == 2),
     )
-    net.run_until(5000)
+    # Note to Amendment 15 (D2): the freeze waits link_rounds_max failed rounds
+    # for a heard, unverified link, so a dead direction delays the freeze.
+    net.run_until(20000)
     n1, n2, n3 = net.node(1), net.node(2), net.node(3)
     l = net.label_of_id
     assert {l(i) for i in n1.edges()} == {
@@ -645,7 +647,9 @@ def test_asymmetric_link_never_becomes_an_edge():
 
 def test_a_neighbour_seen_but_not_acked_is_in_the_table_yet_not_an_edge():
     net = BootNet({1: 5, 2: 3}, [(1, 2)], drop=lambda t, u, v, mt: not hello_only(mt))
-    net.run_until(3000)
+    # Note to Amendment 15 (D2): the freeze waits link_rounds_max failed rounds
+    # for a heard, unverified link, so a dead direction delays the freeze.
+    net.run_until(20000)
     n1 = net.node(1)
     assert len(n1.nbrs) == 1, "HELLO duyulduğu için tabloda olmalı"
     assert list(n1.nbrs.values())[0].bidir is False
@@ -658,7 +662,12 @@ def test_link_is_retried_with_backoff_and_then_given_up():
     net.run_until(3000)
     p = BootstrapParams()
     assert net.counters(1).retx == p.link_max_attempts - 1
-    assert net.node(1).done, "R_max tükenince düğüm sükûnete ermeli"
+    # Note to Amendment 15 (D2): the freeze waits link_rounds_max failed rounds
+    # for a heard, unverified link, so a dead direction delays the freeze.
+    assert not net.node(1).done, "the next round is still owed"
+    net.run_until(20000)
+    assert net.node(1).nbrs and next(iter(net.node(1).nbrs.values())).link_rounds >= p.link_rounds_max
+    assert net.node(1).done, "after link_rounds_max rounds the node settles"
 
 
 def test_duplicate_link_ack_does_not_change_state():
@@ -1439,7 +1448,9 @@ def test_every_send_site_is_either_a_first_send_or_logs_retx():
     hangisi olduğuna karar vermek zorunda kalır.
     """
     tree = ast.parse(inspect.getsource(BootstrapNode))
-    first_send = {"_bcast", "_ucast", "_maybe_hello", "_start_link"}
+    # Amendment 13, G2(b): a LINK heard before its asker's HELLO is answered
+    # from `_on_hello` when the HELLO opens the record; that is a first send.
+    first_send = {"_bcast", "_ucast", "_maybe_hello", "_start_link", "_on_hello"}
     retransmits = {"_retry_links", "_on_link"}
 
     senders = {}

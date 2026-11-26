@@ -846,7 +846,8 @@ def test_run_case_reports_every_column_figure_six_needs():
         assert col in row
     assert row["variant"] == "WuLi-Dominating/sync/bloom/safe"
     assert row["valid"] is True
-    assert row["max_payload"] == wuli.frame_bytes(ENC_BLOOM, 0)
+    # Amendment 13, G2(c): plus at most the bounded confirmation echo
+    assert 0 <= row["max_payload"] - wuli.frame_bytes(ENC_BLOOM, 0) <= (wire.hello_size(0, echo=wire.ECHO_MAX) - wire.hello_size(0))
 
 
 def test_default_cases_cover_three_encodings_and_two_schedulers():
@@ -902,7 +903,7 @@ def test_chunk_divergence_sweep_reports_a_rate_and_the_direction_of_the_error():
     assert all(r["chunk_cycle"] > r["frames_at_decision"] for r in narrow)
     assert max(r["mark_divergence_rate"] for r in narrow) > 0
     assert max(r["mark_divergence_rate"] for r in wide) == 0
-    assert all(r["max_payload"] < 25 for r in narrow)
+    assert all(r["max_payload"] < 25 + (wire.hello_size(0, echo=wire.ECHO_MAX) - wire.hello_size(0)) for r in narrow)  # Amendment 13
 
 
 def test_per_query_fpr_is_the_wrong_unit_per_node_exposure_is_the_right_one():
@@ -960,10 +961,11 @@ def test_each_arm_satisfies_the_result_contract(idx):
     res = adapt_result(spec.run(req), variant=spec.name)
     assert res.converged
     assert res.backbone, "omurga sütunu boş; kalite ekseni çizilemez"
-    assert res.max_payload == wuli.frame_bytes(
+    base = wuli.frame_bytes(
         {"wuli_full": ENC_FULL, "wuli_bloom": ENC_BLOOM, "wuli_frag": ENC_CHUNK}[
             spec.phase1],
         max(len(a) for a in wuli.adjacency(edges, list(weights)).values()))
+    assert 0 <= res.max_payload - base <= (wire.hello_size(0, echo=wire.ECHO_MAX) - wire.hello_size(0))  # Amendment 13, G2(c)
 
 
 def test_request_mis_nbrs_cap_cannot_strangle_the_summary():
@@ -990,7 +992,7 @@ def test_request_mis_nbrs_cap_cannot_strangle_the_summary():
                      mis_nbrs_max=cap)
     res = wuli.BB_VARIANTS[0].run(req)                 # tam liste kolu
     assert res.converged
-    assert res.max_payload == wuli.frame_bytes(ENC_FULL, deg)
+    assert 0 <= res.max_payload - wuli.frame_bytes(ENC_FULL, deg) <= (wire.hello_size(0, echo=wire.ECHO_MAX) - wire.hello_size(0))  # Amendment 13
     assert res.max_payload <= wire.MAX_PAYLOAD
     # kapı gerçekten yükseltilmeseydi üretici `ValueError` atardı: aynı çizgeyi
     # kapıyı yükseltmeyen bir parametreyle koşmak bunu gösterir
@@ -1054,7 +1056,7 @@ def test_densest_converging_instance_stops_far_below_the_wire_limit():
     edges, weights, deg = instance_with_max_degree(33, WuLiParams().nbr_table_max)
     r = run(edges, weights, deg, params=WuLiParams(encoding=ENC_FULL))
     assert r.converged
-    assert r.max_payload == wuli.frame_bytes(ENC_FULL, deg)
+    assert 0 <= r.max_payload - wuli.frame_bytes(ENC_FULL, deg) <= (wire.hello_size(0, echo=wire.ECHO_MAX) - wire.hello_size(0))  # Amendment 13
     assert r.max_payload < wire.MAX_PAYLOAD
     assert r.max_payload <= wuli.frame_bytes(ENC_FULL, WuLiParams().nbr_table_max)
 

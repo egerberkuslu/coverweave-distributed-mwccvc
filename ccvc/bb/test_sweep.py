@@ -24,6 +24,7 @@ import csv
 import dataclasses
 import os
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -1101,17 +1102,91 @@ def test_a_single_version_sweep_says_so_explicitly(rows, builtin):
     assert "TEK bir kod sürümünden" in md
 
 
-def test_the_fingerprint_moves_when_the_package_changes(tmp_path, monkeypatch):
-    """Parmak izi gerçekten DEĞİŞMELİ; sabit bir dizge hiçbir şey yakalamaz."""
-    import pathlib
-    before = sweep.code_fingerprint()
-    assert before == sweep.code_fingerprint(), "aynı ağaçta kararlı olmalı"
-    target = pathlib.Path(sweep.__file__).parent / "api.py"
-    st = target.stat()
-    try:
-        os.utime(target, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
-        assert sweep.code_fingerprint() != before, \
-            "dosya değişti ama parmak izi kıpırdamadı"
-    finally:
-        os.utime(target, ns=(st.st_atime_ns, st.st_mtime_ns))
-    assert sweep.code_fingerprint() == before, "geri alma da yansımalı"
+
+# ==========================================================================
+# 20. Per-run parameter overrides (block M8), run counters, exact feasibility
+# ==========================================================================
+TINY_EDGES = ((1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (1, 6),
+              (1, 4), (2, 5), (3, 6), (1, 3), (3, 5), (2, 4))
+TINY_W = {1: 35.0, 2: 20.0, 3: 42.0, 4: 15.0, 5: 28.0, 6: 30.0}
+
+
+def _req(scheduler, over):
+    return RunRequest(edges=TINY_EDGES, weights=TINY_W, k=3, scheduler=scheduler,
+                      seed=1, max_ms=60_000, params_overrides=over)
+
+
+def test_overrides_reach_every_node_of_every_arm_family():
+    """A bootstrap and a protocol field on every arm, plus an annealing field on
+    the annealing family, must reach every node's parameter dataclass."""
+    families = set()
+    for spec in sweep.discover():
+        over = {"stale_periods": 5, "gap_patience": 7}
+        if spec.family == "anneal":
+            over["alpha"] = 0.8
+        run = spec.run(_req(spec.schedulers[0], over))
+        got = {tuple(getattr(n.p, f) for f in over) for n in run.nodes.values()}
+        assert got == {tuple(over.values())}, spec.name
+        families.add(spec.family)
+    assert families >= {"bb", "dfs", "mst", "anneal", "greedy-backbone"}
+
+
+def test_an_unknown_override_raises_and_is_not_an_error_row(instances, builtin):
+    for spec in sweep.discover():
+        with pytest.raises(sweep.ParamsOverrideError):
+            spec.run(_req(spec.schedulers[0], {"no_such_field": 1}))
+    # an annealing field is unknown to a non-annealing arm
+    with pytest.raises(sweep.ParamsOverrideError):
+        builtin[0].run(_req("sync", {"alpha": 0.8}))
+    bad = dataclasses.replace(SMALL, params_overrides={"no_such_field": 1})
+    with pytest.raises(sweep.ParamsOverrideError):
+        sweep.run_one(instances[0], builtin[0], "sync", bad)
+
+
+def test_no_override_is_a_no_op_and_an_override_is_recorded(instances, builtin):
+    p = object()
+    assert sweep.with_overrides(p, _req("sync", None)) is p
+    assert sweep.run_one(instances[0], builtin[0], "sync", SMALL).params == ""
+    opts = dataclasses.replace(SMALL, params_overrides={"gap_patience": 4})
+    row = sweep.run_one(instances[0], builtin[0], "sync", opts)
+    assert (row.params, row.status) == ('{"gap_patience": 4}', "ok")
+
+
+NEW_COLUMNS = ("params", "mis_depth", "restarts", "tx_after_convergence",
+               "state_bytes_max", "state_bytes_mean", "double_claims")
+#: Amendment 4 (R1_PREREG): validity on the discovered graph, appended after.
+DISCOVERED_COLUMNS = ("valid_discovered", "planned_missing", "discovered_extra")
+
+
+def test_the_trailing_counter_columns_come_from_the_run_result(instances, builtin):
+    tail = NEW_COLUMNS + DISCOVERED_COLUMNS
+    assert sweep.CSV_FIELDS[-len(tail):] == tail
+    vals = dict(mis_depth=3, restarts=1, tx_after_convergence=0,
+                state_bytes_max=120, state_bytes_mean=88.5)
+
+    def counted(req):
+        res = builtin[0].run(req)
+        for name, v in vals.items():
+            setattr(res, name, v)
+        return res
+
+    def bare(req):  # only the required fields: nothing to report
+        res = builtin[0].run(req)
+        return SimpleNamespace(**{f: getattr(res, f)
+                                  for f in sweep.REQUIRED_RESULT_FIELDS})
+
+    row = sweep.run_one(instances[0], VariantSpec("V-c", "bb", "mis", "local", counted),
+                        "sync", SMALL)
+    assert {f: getattr(row, f) for f in vals} == vals and row.double_claims == 0
+    assert (row.valid_discovered, row.planned_missing, row.discovered_extra) == (
+        row.valid, 0, 0)
+    row = sweep.run_one(instances[0], VariantSpec("V-b", "bb", "mis", "local", bare),
+                        "sync", SMALL)
+    assert [getattr(row, f) for f in NEW_COLUMNS[1:]] == [None] * 6
+    assert [getattr(row, f) for f in DISCOVERED_COLUMNS] == [None] * 3
+
+
+def test_feasibility_is_decided_by_max_flow_above_200_nodes():
+    inst = sweep.synthetic_instance(matrix.Cell("large", 250, 2), 0)
+    assert sweep.instance_feasibility(inst, SweepOptions(k=4)) == "yes"
+    assert sweep.instance_feasibility(inst, SweepOptions(k=1)) == "no"

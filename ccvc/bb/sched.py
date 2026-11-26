@@ -120,6 +120,31 @@ class SyncScheduler(_BaseScheduler):
         if tau_ms <= 0:
             raise ValueError("tau_ms must be > 0")
         self.tau_ms = int(tau_ms)
+        self._slots = 0
+
+    def _slot(self, t0: int) -> None:
+        self.net.set_now(t0)
+
+        # 1) whatever was sent in the previous slot is delivered now
+        for d in self.net.drain_all():
+            self.net.deliver(d)
+
+        # 2) timer: once per node, in a deterministic order
+        for nid in self.order:
+            self.net.set_now(t0)
+            self.nodes[nid].on_timer(TIMER_TICK)
+
+    def watch(self, window_ms: int) -> None:
+        """Keep the slots running for `window_ms` after `run` returned.
+
+        MEASUREMENT ONLY: `bbcvc.run_bbcvc` calls it on a twin of a converged
+        run to count the transmissions after the verdict; the outcome `run`
+        returned is not touched.
+        """
+        for _ in range(int(window_ms) // self.tau_ms):
+            self._slot(self._slots * self.tau_ms)
+            self._slots += 1
+        self.net.set_now(self._slots * self.tau_ms)
 
     def run(self, max_ms: int) -> RunOutcome:
         budget = int(max_ms) // self.tau_ms
@@ -129,18 +154,7 @@ class SyncScheduler(_BaseScheduler):
         t_end = 0
 
         while slots < budget:
-            t0 = slots * self.tau_ms
-            self.net.set_now(t0)
-
-            # 1) whatever was sent in the previous slot is delivered now
-            for d in self.net.drain_all():
-                self.net.deliver(d)
-
-            # 2) timer: once per node, in a deterministic order
-            for nid in self.order:
-                self.net.set_now(t0)
-                self.nodes[nid].on_timer(TIMER_TICK)
-
+            self._slot(slots * self.tau_ms)
             slots += 1
             t_end = slots * self.tau_ms
             self.net.set_now(t_end)
@@ -152,6 +166,7 @@ class SyncScheduler(_BaseScheduler):
 
         if not converged:
             notes.append("wall budget exhausted without quiescence")
+        self._slots = slots
         self.net.set_now(t_end)
         self.net.finalize(t_end)
         return self._outcome(converged=converged, slots=slots,
@@ -180,6 +195,40 @@ class AsyncScheduler(_BaseScheduler):
             raise ValueError("tick_ms must be > 0")
         self.tick_ms = int(tick_ms)
         self.seed = int(seed)
+        self._resume: Optional[Tuple[list, int, int]] = None
+
+    def _fire(self, heap: list, seq: int, t: int, kind: int, nid: int,
+              deliv: Optional[Delivery]) -> Tuple[int, int]:
+        """One event at `t`. Returns the next heap seq and the frames it queued."""
+        self.net.set_now(t)
+        if kind == 0:
+            self.nodes[nid].on_timer(TIMER_TICK)
+            seq += 1
+            heapq.heappush(heap, (t + self.tick_ms, seq, 0, nid, None))
+        else:
+            self.net.deliver(deliv)
+
+        # frames born during a send enter the same heap carrying their own
+        # absolute delivery times
+        queued = 0
+        for d in self.net.drain_all():
+            seq += 1
+            queued += 1
+            heapq.heappush(heap, (d.t_ms, seq, 1, d.dst, d))
+        return seq, queued
+
+    def watch(self, window_ms: int) -> None:
+        """Keep the event loop running for `window_ms` after `run` converged.
+
+        MEASUREMENT ONLY, as `SyncScheduler.watch`.
+        """
+        heap, seq, t = self._resume
+        end = t + int(window_ms)
+        while heap and heap[0][0] <= end:
+            t_evt, _, kind, nid, deliv = heapq.heappop(heap)
+            seq, _ = self._fire(heap, seq, t_evt, kind, nid, deliv)
+        self._resume = (heap, seq, end)
+        self.net.set_now(end)
 
     def run(self, max_ms: int) -> RunOutcome:
         max_ms = int(max_ms)
@@ -203,22 +252,10 @@ class AsyncScheduler(_BaseScheduler):
                 t = max_ms
                 break
             t = t_evt
-            self.net.set_now(t)
-
-            if kind == 0:
-                self.nodes[nid].on_timer(TIMER_TICK)
-                seq += 1
-                heapq.heappush(heap, (t + self.tick_ms, seq, 0, nid, None))
-            else:
+            if kind != 0:
                 pending_deliveries -= 1
-                self.net.deliver(deliv)
-
-            # frames born during a send enter the same heap carrying their own
-            # absolute delivery times
-            for d in self.net.drain_all():
-                seq += 1
-                pending_deliveries += 1
-                heapq.heappush(heap, (d.t_ms, seq, 1, d.dst, d))
+            seq, queued = self._fire(heap, seq, t, kind, nid, deliv)
+            pending_deliveries += queued
 
             if self._mark_done(t):
                 last_change_ms = t
@@ -229,6 +266,7 @@ class AsyncScheduler(_BaseScheduler):
 
         if not converged:
             notes.append("wall budget exhausted without quiescence")
+        self._resume = (heap, seq, t)
         t_final = t if converged else max_ms
         self.net.set_now(t_final)
         self.net.finalize(t_final)

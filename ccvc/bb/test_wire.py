@@ -55,8 +55,12 @@ def _one_of_each():
         MsgType.GHS_ACCEPT: wire.Ghs(MsgType.GHS_ACCEPT, 28, 522, 0, 0, 0),
         MsgType.GHS_REJECT: wire.Ghs(MsgType.GHS_REJECT, 29, 523, 0, 0, 0),
         # negative wfp exercises the signed 16.16 field
-        MsgType.GHS_REPORT: wire.Ghs(MsgType.GHS_REPORT, 30, 524, 2, 7, -4242),
+        MsgType.GHS_REPORT: wire.Ghs(MsgType.GHS_REPORT, 30, 524, 2, 7, -4242,
+                                     cert=(1234, 5678, 99)),
         MsgType.GHS_CHANGE_ROOT: wire.Ghs(MsgType.GHS_CHANGE_ROOT, 31, 525, 2, 7, 0),
+        # R1 repair F17: the certificate wave rides on the edge body.
+        MsgType.CERT: wire.EdgeMsg(MsgType.CERT, 32, 17, 0, 0, epoch=3),
+        MsgType.CERT_ACK: wire.EdgeMsg(MsgType.CERT_ACK, 33, 17, 300, 800, epoch=3),
     }
 
 
@@ -126,7 +130,9 @@ def test_sizes_table():
     assert s == {"HELLO_min": 13, "HELLO_max": 23,
                  "HELLO_anneal_min": 21, "HELLO_anneal_max": 31,
                  "LINK": 5, "LINK_ACK": 5,
-                 "JOIN": 6, "JOIN_ACK": 6, "HANDOVER": 10, "PUSH": 10,
+                 # R1 repair F3: JOIN, JOIN_ACK and the edge types carry the
+                 # sender's epoch byte (6 -> 7 and 10 -> 11); BB_MIS does not.
+                 "JOIN": 7, "JOIN_ACK": 7, "HANDOVER": 12, "PUSH": 12,
                  "TREE": 10, "STABLE": 29, "FINISH": 8,
                  "TOKEN": 7, "TOKEN_DONE": 7, "GREEDY_STATE": 29,
                  # DFS-Spanning-Backbone distributed control. DFS_DONE shares the Token body
@@ -136,7 +142,9 @@ def test_sizes_table():
                  # GHS-MST-Backbone. One 13 B body for all seven steps, so each step
                  # keeps its own `by_type_tx` counter.
                  "GHS_CONNECT": 15, "GHS_INITIATE": 15, "GHS_TEST": 15,
-                 "GHS_ACCEPT": 15, "GHS_REJECT": 15, "GHS_REPORT": 15,
+                 # R1 repair F12b: GHS_REPORT carries the certificate sums
+                 # (min(deg, k), deg, node count; 10 B), so 15 -> 25.
+                 "GHS_ACCEPT": 15, "GHS_REJECT": 15, "GHS_REPORT": 25,
                  "GHS_CHANGE_ROOT": 15}
 
 

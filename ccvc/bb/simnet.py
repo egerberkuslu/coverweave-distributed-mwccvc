@@ -83,12 +83,31 @@ CHANNEL FAULTS (brief 3.4)
   RSSI is either a dict as before or a `(t_ms, src, dst) -> float` callable;
   the callable exists so a link can be swung between -76 and -84 dBm over time
   and the hysteresis actually exercised.
+
+LOSS MODELS (the `loss` argument)
+  float        independent Bernoulli loss on every frame (with `link_loss` per
+               undirected link overriding it). This path is unchanged.
+  'ge:<r>:<b>' Gilbert-Elliott: one two-state Markov chain per DIRECTED link,
+               stepped once per frame on that link, on its own RNG stream. The
+               good state delivers, the bad state drops. Stationary loss r and
+               mean burst length b frames give (see `ge_transitions`)
+                   q = P(bad -> good) = 1 / b
+                   p = P(good -> bad) = r / (b (1 - r))
+               A link's first frame starts the chain in its stationary law.
+               Exclusive with `link_loss`.
+  'emp'        heterogeneous loss: each undirected link gets 1 - d, with d drawn
+               (seeded) from the measured Mininet-WiFi per-pair HELLO delivery
+               ratios in `EMP_DELIVERY_PATH`, written by
+               ccvc/bb/data/derive_hello_delivery.py. Explicit `link_loss`
+               entries win. Frames are then Bernoulli on the float path.
 """
 from __future__ import annotations
 
+import json
 import os
 import random
 import sys
+from functools import lru_cache
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -160,6 +179,42 @@ def exponential_delay(mean_ms: float, cap_ms: int = 10_000) -> Callable[[int, in
 
 
 # --------------------------------------------------------------------------
+# loss models (see the header)
+# --------------------------------------------------------------------------
+#: Measured per-pair HELLO delivery ratios for the 'emp' label.
+EMP_DELIVERY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "data", "mnwifi_hello_delivery.json")
+
+
+def ge_transitions(r: float, b: float) -> Tuple[float, float]:
+    """(p, q) of a Gilbert-Elliott chain with stationary loss r and mean burst b.
+
+    A burst is a run of bad-state frames, geometric with mean 1/q, so q = 1/b.
+    Stationarity P(bad) = p / (p + q) = r gives p = r / (b (1 - r)).
+    """
+    if not 0.0 <= r < 1.0 or b < 1.0:
+        raise ValueError(f"ge loss needs 0 <= r < 1 and b >= 1, got r={r}, b={b}")
+    p = r / (b * (1.0 - r))
+    if p > 1.0:
+        raise ValueError(f"ge loss r={r}, b={b} is not realisable: needs r <= b/(1+b)")
+    return p, 1.0 / b
+
+
+@lru_cache(maxsize=None)
+def empirical_delivery(path: str) -> Tuple[float, ...]:
+    """The measured delivery ratios, loaded once per path."""
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"{path} is missing; derive it from Mininet-WiFi station logs with "
+            "ccvc/bb/data/derive_hello_delivery.py")
+    with open(path, encoding="utf-8") as fh:
+        pool = tuple(float(d) for d in json.load(fh)["delivery"])
+    if not pool or not all(0.0 <= d <= 1.0 for d in pool):
+        raise ValueError(f"{path}: delivery ratios must be a non-empty list in [0, 1]")
+    return pool
+
+
+# --------------------------------------------------------------------------
 # the network
 # --------------------------------------------------------------------------
 class SimNet:
@@ -170,7 +225,7 @@ class SimNet:
         nodes: Iterable[int],
         edges: Iterable[Edge],
         *,
-        loss: float = 0.0,
+        loss: float | str = 0.0,
         link_loss: Optional[Dict[Edge, float]] = None,
         delay: Callable[[int, int, random.Random], int] = None,
         rssi=None,
@@ -197,7 +252,6 @@ class SimNet:
         for n in self.nodes:
             self._adj[n].sort()
 
-        self.loss = float(loss)
         self.link_loss: Dict[Edge, float] = {_norm(*k): float(v)
                                              for k, v in (link_loss or {}).items()}
         self.delay = delay or fixed_delay(1)
@@ -206,6 +260,24 @@ class SimNet:
         # independent streams: loss and delay never shift each other's draws
         self._rng_loss = random.Random(self.seed * 2654435761 + 0x9E37)
         self._rng_delay = random.Random(self.seed * 2654435761 + 0x85EB)
+
+        # Gilbert-Elliott (p, q, r) and the bad-state flag per DIRECTED link
+        self._ge: Optional[Tuple[float, float, float]] = None
+        self._ge_bad: Dict[Edge, bool] = {}
+        if isinstance(loss, str) and loss.startswith("ge:"):
+            if link_loss:
+                raise ValueError("a 'ge:' loss label and link_loss are exclusive")
+            r, b = (float(x) for x in loss[3:].split(":"))
+            self._ge = (*ge_transitions(r, b), r)
+            self._rng_ge = random.Random(self.seed * 2654435761 + 0x6E1B)
+            loss = r
+        elif loss == "emp":
+            pool = empirical_delivery(EMP_DELIVERY_PATH)
+            rng = random.Random(self.seed * 2654435761 + 0xE3B1)
+            for e in sorted(self.edges):
+                self.link_loss.setdefault(e, 1.0 - rng.choice(pool))
+            loss = 0.0
+        self.loss = float(loss)
 
         self.drop = drop
         self.rssi_fn: Optional[Callable[[int, int, int], float]] = None
@@ -343,15 +415,33 @@ class SimNet:
     def _drops(self, src: int, dst: int, mtype: int) -> bool:
         """Is this frame dropped from src to dst? The single decision point.
 
-        The die is ALWAYS rolled, even when the predicate drops the frame, so
-        that the alignment of the loss stream stays independent of the predicate.
+        The die is ALWAYS rolled (and a Gilbert-Elliott chain always stepped),
+        even when the predicate drops the frame, so that the alignment of the
+        loss stream stays independent of the predicate.
         """
-        roll = self._rng_loss.random()
+        if self._ge is not None:
+            lost = self._ge_step(src, dst)
+        else:
+            lost = self._rng_loss.random() < self._loss_of(src, dst)
         by_rule = self.drop is not None and bool(self.drop(self._now, src, dst, mtype))
         if by_rule:
             self.dropped_by_rule += 1
             return True
-        return roll < self._loss_of(src, dst)
+        return lost
+
+    def _ge_step(self, src: int, dst: int) -> bool:
+        """Advance the DIRECTED link's chain by one frame. True means drop."""
+        p, q, r = self._ge
+        u = self._rng_ge.random()
+        bad = self._ge_bad.get((src, dst))
+        if bad is None:
+            bad = u < r          # first frame: the stationary law
+        elif bad:
+            bad = u >= q         # leave the burst with probability q
+        else:
+            bad = u < p
+        self._ge_bad[(src, dst)] = bad
+        return bad
 
     def _enqueue(self, src: int, dst: int, payload: bytes) -> None:
         d_ms = self.delay(src, dst, self._rng_delay)

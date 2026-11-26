@@ -847,7 +847,14 @@ def test_simulator_reference_is_the_measured_one_not_the_document(sim_reference)
     # though every node has finished. Price on this example: four HELLOs, tx 507
     # to 510 and rx 1367 to 1373, with SLOTS UNCHANGED at 53 and the emulator
     # still matching the simulator exactly.
-    assert (sim_reference.slots, sim_reference.tx, sim_reference.rx) == (53, 510, 1373)
+    # R1 REPAIRS (F1-F5, ccvc/bb/test_r1_repairs.py): 53 -> 54 slots, 510 -> 522
+    # tx, 1373 -> 1397 rx. F2 answers an open-barrier beacon once per stale
+    # window instead of once per epoch; the last answer is in flight at slot 53.
+    # Amendment 13: every DONE node asks its frozen neighbours to confirm it
+    # (G2c), and a node is done only when closed (G4). On the worked example
+    # that is 6 HELLOs (closed nodes echoing) and 20 rx more, slots unchanged; the
+    # cover, weight and every algorithm unicast are unchanged.
+    assert (sim_reference.slots, sim_reference.tx, sim_reference.rx) == (54, 528, 1417)
     assert sim_reference.converged and not sim_reference.infeasible
 
 
@@ -869,10 +876,22 @@ def test_end_to_end_over_real_sockets_reproduces_the_simulator(
 
     run = collector.counters_from_logs(collector.read_run(str(tmp_path)),
                                        tau_ms=TAU_MS, t0_ms=0)
-    cmp_ = collector.compare_with_sim(run, sim_reference, weights=WEIGHTS)
+    # TWO SLOT COUNTS, EACH AGAINST ITS EXACT COUNTERPART. `drive` returns the
+    # verdict: every node done AND no frame in flight, which is what
+    # `SyncScheduler.run` counts. The collector's `slots` is derived from the
+    # latest first-DONE stamp in the logs (its own label: a quiescence proxy),
+    # one slot after the slot that stamp closes; the simulator's counterpart is
+    # its latest `done_ms`. Before the R1 repairs the run ended exactly one slot
+    # after the last node's first DONE, so proxy and verdict coincided (53);
+    # now one F2 answer is still in flight at slot 53 and the verdict is 54.
+    sim_last_done = max(sim_reference.net.done_ms(n) for n in sim_reference.net.nodes)
+    sim_proxy = dataclasses.replace(sim_reference, slots=sim_last_done // TAU_MS + 1)
+    cmp_ = collector.compare_with_sim(run, sim_proxy, weights=WEIGHTS)
     assert cmp_.exact, cmp_.summary()
-    assert run.slots == sim_reference.slots == 53
-    assert run.totals().tx == 510 and run.totals().rx == 1373
+    assert slots == sim_reference.slots == 54  # Amendment 13 (G2c, G4)
+    # Amendment 13, G4: `done` (hence the first-DONE stamp) now means closed
+    assert run.slots == sim_proxy.slots == 55
+    assert run.totals().tx == 528 and run.totals().rx == 1417
     assert run.cover == sim_reference.cover
     assert run.owner == {topo.edge(*e): v for e, v in sim_reference.owner.items()}
 
@@ -907,6 +926,11 @@ def test_a_second_node_implementation_also_reproduces_its_simulator(tmp_path):
                                        tau_ms=ch.tau_ms, t0_ms=0)
     sim = wuli.run_wuli(EDGES, WEIGHTS, K, scheduler="sync", params=params,
                         max_ms=600_000, tau_ms=ch.tau_ms)
+    # Amendment 13, G4: the verdict now waits for the closed barrier, one slot
+    # after the last first-DONE; the collector's slots is that first-DONE proxy,
+    # so it is compared with the simulator's counterpart, as in the clean test.
+    last = max(sim.net.done_ms(n) for n in sim.net.nodes)
+    sim = dataclasses.replace(sim, slots=last // ch.tau_ms + 1)
     cmp_ = collector.compare_with_sim(run, sim, weights=WEIGHTS)
     assert cmp_.exact, cmp_.summary()
 

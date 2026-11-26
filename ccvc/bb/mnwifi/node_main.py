@@ -371,8 +371,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--rssi-period-ms", type=int, default=500)
     ap.add_argument("--mis-nbrs-max", type=int, default=5)
     ap.add_argument("--nbr-table-max", type=int, default=64)
-    ap.add_argument("--params-json", default=None,
-                    help="Saved deployment parameters; unknown fields are rejected")
+    ap.add_argument(
+        "--params-json",
+        default=None,
+        help="Saved deployment parameters; unknown fields are rejected",
+    )
     ap.add_argument(
         "--drop",
         action="append",
@@ -425,13 +428,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         unknown = set(saved) - {f.name for f in dataclasses.fields(params_cls)}
         if unknown:
             raise ValueError(f"Unknown deployment parameter fields: {sorted(unknown)}")
-        for key, value in (("t_hello_ms", a.t_hello_ms), ("mis_nbrs_max", a.mis_nbrs_max),
-                           ("nbr_table_max", a.nbr_table_max)):
+        for key, value in (
+            ("t_hello_ms", a.t_hello_ms),
+            ("mis_nbrs_max", a.mis_nbrs_max),
+            ("nbr_table_max", a.nbr_table_max),
+        ):
             if key in saved and saved[key] != value:
                 raise ValueError(f"Saved {key} disagrees with the station command")
         params_sha256 = hashlib.sha256(raw).hexdigest()
-    settings = dict(t_hello_ms=a.t_hello_ms, mis_nbrs_max=a.mis_nbrs_max,
-                    nbr_table_max=a.nbr_table_max)
+    settings = dict(
+        t_hello_ms=a.t_hello_ms,
+        mis_nbrs_max=a.mis_nbrs_max,
+        nbr_table_max=a.nbr_table_max,
+    )
     settings.update(saved)
     params = build_params(
         params_cls,
@@ -443,6 +452,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     port.set_phase_source(lambda: node.phase)
 
     from ccvc.greedy.compare import fingerprint as code_fingerprint
+
     port.log(
         "run_start",
         code_fingerprint=code_fingerprint(),
@@ -503,6 +513,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             else -1,
             key_fp=-1 if getattr(node, "key_fp", None) is None else int(node.key_fp),
             epoch=int(getattr(node, "epoch", 0)),
+            epoch_advance=getattr(node, "epoch_advance", None),
             owned=[list(e) for e in owned],
             bidir=sorted(
                 int(u) for u in (node.edges() if hasattr(node, "edges") else ())

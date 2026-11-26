@@ -77,9 +77,91 @@ summed.
 Returning `unresolved` in this situation IS THE CORRECT ANSWER: it is the most
 accurate response available to the question a node is able to ask. Patching it
 would require the global information this project has refused to use throughout.
+
+R1 UPDATE (repair F11b, Amendment 8). The diagnosis above stands: no local
+predicate sees this class. What changed is the reach of the repair, not its
+information. A node whose deepest push failed relays an invitation through the
+cover, one hop at a time, to a cover node that has an outside neighbour, which
+invites it (`_far_step`). No node learns anything global. On this instance the
+synchronous run now invites one outside node through four relays and ends
+solved and valid with |C| = 90; on n200_m1200 s3 and s10 the spanning-tree arm,
+whose cover lacked one node three hops away, now ends valid as well.
+
+R1 REPAIRS (pre-registered, paper/CoverWeave_R1/contract/R1_PREREG.md, Amendment 1).
+A proof audit showed by fault injection on the worked example that three lost
+JOIN copies stall a run, three lost HANDOVER_ACK copies leave a doubly owned
+edge, and a lost DONE HELLO plus its one answer leave beaconing that never
+stops. The repairs, each with its regression test in test_r1_repairs.py:
+  F1 `_retry_pending`: HANDOVER and PUSH are retransmitted with capped backoff
+     until a reply arrives; a JOIN is re-armed after its give-up, so the rule
+     that sent it sends it again while its trigger holds.
+  F2 `_answer_a_neighbour_still_waiting`: HELLO carries an open-barrier flag and
+     a DONE node answers every open-flag beacon at most once per stale window.
+  F3 `_on_algo`: JOIN and edge messages carry the epoch; another epoch's frame
+     is dropped.
+  F4 `_nbrs_active` / `_view_stale`: decisions read the epoch's frozen view, and
+     a frozen neighbour without a live verified record means wait.
+  F5 `_seen_put`: the duplicate-reply cache keeps SEEN_PER_PEER replies per peer.
+Amendment 4 adds two more:
+  F7 `_refuse`: a request from a peer I hear but have not verified is answered
+     with a refusal, so a request is always answered under one-way gates.
+  F8 (v4_mst.py) is the spanning-tree arm's own repair.
+Amendment 6: F9, one stale window per neighbour, lives in bootstrap.py.
+Amendment 7 adds:
+  F10 `_finish_push_job`: a push chain that outlived its sender's timeout (the
+     sender got a busy NACK) ends with a LATE acknowledgement, and that one is
+     a request: it is repeated until the sender confirms it (`LATE_ASK`,
+     `LATE_CONFIRM`), so losing it can no longer leave both ends owning the edge.
+  F13 `_quiescence` / `_expire`: a neighbour I hear but have not verified yet
+     keeps me from DONE until it is verified or silent for its stale window
+     (counted in its slowest beacon rate, `_quiet_window_ms`), so the LINK
+     retry comes before the verdict; and a QUIET node, or a DONE node whose
+     barrier is open, expires a silent neighbour, so a node removed while any
+     neighbour still transmits is detected and the epoch restarts.
+  F12b (v4_mst.py): the spanning-tree arm's final GHS REPORT wave sums
+     min(deg, k), deg and the node count; the core applies the counting bound
+     and the degree-gap witness, and HELLO's flag carries a positive verdict
+     to every node (`_certify`), which then reports unresolved without
+     repairing. Every other arm keeps the run-level check.
+  F11b `_far_step`: when even the deepest push failed, an invitation is relayed
+     through the cover (depth first, one search per node and epoch, every
+     relay a persistent epoch-tagged request) to a cover node with an outside
+     neighbour, which invites it; the origin then deepens once more.
+  F17 `_cert_start` / `_on_cert`: the first node that uses up its repair
+     rounds starts an echo wave over the discovered graph (the smallest
+     initiator wins); the wave sums min(deg, k) and deg over every node, and its
+     initiator applies the degree-gap witness, which fires on every instance
+     the counting bound rejects. A positive verdict reaches every node through
+     HELLO's flag and every node then reports unresolved instead of repairing
+     (F12b's rule), so no futile deepening runs on an instance the witness
+     proves infeasible. CERT is repeated until answered, like every request.
+  F11 `_fix_overload`: when the repair rounds are used up, the push depth is
+     raised step by step, each step a fresh round at twice the depth, up to an
+     upper bound on the number of nodes (`n_bound`), before the node reports
+     unresolved.
+Amendment 9 adds:
+  F15 `_confirm_state`: a role or forced load that a node announces after its
+     DONE HELLO is final for ownership only once every frozen neighbour has
+     echoed it in a HELLO. Until then the node is not done and its barrier
+     stays open, and it asks again once per stale window; a DONE node, closed
+     or not, echoes at once and announces at once a change of its own.
+  F14 `_repeated`: a HANDOVER, PUSH or relay JOIN that missed the reply cache
+     and is at or below its sender's highest executed seq is answered from the
+     receiver's state and not executed, so an evicted duplicate changes nothing.
+  F14b `_has_room`: a copy of the PUSH my chain still serves changes nothing
+     but by taking the edge, a failed chain acknowledges an edge such a copy
+     took instead of refusing it, and `_fix_overload` waits rather than offer
+     an edge to a neighbour that still has its earlier offer open (a chain
+     probe moves `_fix_key`, so the gate alone did not hold one per neighbour).
+     A copy refused by F7 sets the busy flag of F10 like a busy refusal.
+Amendment 10 adds:
+  F16b `_handoff_open`: a node that expires a neighbour it held as DONE keeps
+     its barrier open and announces its epoch until it hears that neighbour in
+     it or twice the stale cap has passed since its latest restart.
 """
 from __future__ import annotations
 
+import copy
 import itertools
 import os
 import sys
@@ -122,6 +204,24 @@ _TREE_NO_NODE = 0
 #: fixed point and therefore stay below 2^31.
 _KEY_INF = 1 << 62
 
+#: Replies kept per peer for duplicate replay (repair F5), so the cache stays
+#: O(deg) instead of growing per request. No constant covers every request a
+#: peer can still be retransmitting: old JOINs of three reasons, a relayed
+#: escalation and invitation, its own transfer, a chain probe and, while copy
+#: after copy is lost, any number of later requests can arrive between two
+#: copies. An evicted duplicate is caught by the per-peer mark of repair F14.
+SEEN_PER_PEER = 4
+
+#: Repair F10. The ttl byte of a PUSH_ACK, which is otherwise always 0, says
+#: whether it is a late acknowledgement that wants a confirmation (LATE_ASK)
+#: or that confirmation itself (LATE_CONFIRM). The frame keeps its 11 B.
+LATE_ASK = 1
+LATE_CONFIRM = 2
+#: A late acknowledgement waits in `_pending` under (peer, _LATE_KEY | seq).
+#: Its seq is the PEER's request seq, so the flag keeps it apart from my own
+#: requests to that peer, whose seqs stay below 2^16.
+_LATE_KEY = 1 << 16
+
 # --------------------------------------------------------------------------
 # phases
 # --------------------------------------------------------------------------
@@ -142,6 +242,7 @@ JOIN_CONNECTOR = 1   # Phase 1b, 3-hop gap
 JOIN_FORCED = 2      # Phase 3, forced-load overflow
 JOIN_ESCALATE = 3    # Phase 4, stage 3 escalation
 JOIN_RELAY = 4       # Phase 4, stage 3b: "escalate on my behalf" (see below)
+JOIN_FAR = 5         # Phase 4, F11b: relayed through the cover to an outside node
 
 
 def edge(u: int, v: int) -> Edge:
@@ -246,7 +347,9 @@ class BbcvcParams(BootstrapParams):
     PUSH success rate was 1.3% over 1719 attempts. Deepening is not merely
     expensive: on seed 43 it drives the assignment into a state it cannot
     recover from and LOSES the valid answer. The parameter remains for
-    experiments; it is off on the default path.
+    experiments; it is off on the default path. (That measurement predates
+    F1-F10. Repair F11 deepens only after `max_repair_rounds` are used up,
+    up to `n_bound`; it does not read this parameter.)
     """
     quiet_periods: int = 3       # .tex Phase 5a, T_q = 3 HELLO periods
     ack_periods: int = 3         # ACK timeout = 3 * T_hello (round trip is 2)
@@ -255,6 +358,25 @@ class BbcvcParams(BootstrapParams):
     gap_patience: int = 2        # patience before declaring a 3-hop gap
     escalate_patience: int = 2   # steps stuck before escalating
     max_repair_rounds: int = 4   # how many FULL ROUNDS the three stages retry
+    push_depth_max: Optional[int] = 8
+    """F17b: the constant D_max that caps repair F11's push depth below n_bound.
+
+    Fixed on the development set (Amendment 11) as the smallest power of two
+    that keeps every repair F11 resolved on the 75 runs with m = nk at its F11
+    outcome. MEASURED: 14 of the 75 runs push deeper than 8 without the cap
+    (to 12, 24 or 200); at 8 all 14 keep verdict and cover, at 4 three end
+    unresolved (DFS sync, Wu-Li async on n200_m1200_s6), at 2 three others.
+    Where the certificate is silent on an infeasible instance (block M9),
+    every overloaded node otherwise climbs the doubling ladder to n.
+    None leaves the cap at min(n_bound, 255).
+    """
+    n_bound: Optional[int] = None
+    """An upper bound on the number of nodes that every node knows, like k (F11).
+
+    It caps the deepening of repair F11: a path that reassigns ownership has
+    fewer edges than there are nodes. `run_bbcvc` sets it to the run's node
+    count; None means the deepest push a frame can carry (the 1-byte ttl).
+    """
 
     def __post_init__(self) -> None:
         # Bootstrap's 100 ms LINK backoff produces spurious retransmissions even
@@ -262,6 +384,9 @@ class BbcvcParams(BootstrapParams):
         # of a HELLO period (measured: 15 spurious retx). Wait a full round trip.
         if self.link_backoff_ms < 3 * self.t_hello_ms:
             self.link_backoff_ms = 3 * self.t_hello_ms
+    #: G2(c) (Amendment 13): ask every frozen neighbour to confirm at DONE.
+    #: Off only to measure its cost; the protocol runs with it on.
+    mutual_confirm: bool = True
     enable_tree: bool = False    # Phase 5b (MIS-Connector-TreeAgg); measurement only, decides nothing
     tree_deadline_periods: int = 40   # the run still terminates if 5b stalls
 
@@ -293,6 +418,16 @@ class Pending:
 
 
 @dataclass
+class FarJob:
+    """F11b: a relayed invitation I am searching for (src None at the origin)."""
+
+    src: Optional[int]
+    seq: int
+    tried: Set[int] = field(default_factory=set)
+    probing: Optional[int] = None
+
+
+@dataclass
 class PushJob:
     """Chain state kept while servicing an inbound PUSH (.tex on_push)."""
 
@@ -303,6 +438,9 @@ class PushJob:
     tried: Set[int] = field(default_factory=set)
     probing: Optional[int] = None   # the neighbour I am probing right now
     probe_edge: Optional[Edge] = None
+    #: I answered a retransmission of THIS request with a busy NACK, so the
+    #: sender has given up on it and my final ACK will be late (F10).
+    nacked: bool = False
 
 
 # --------------------------------------------------------------------------
@@ -321,6 +459,8 @@ class BbcvcNode(BootstrapNode):
         super().__init__(weight, platform, params or BbcvcParams(), capacity_k)
         self.p: BbcvcParams = self.p  # type narrowing
         self._init_algo_state()
+        #: F16b: expired finished neighbour -> end of its hand-off wait (ms).
+        self._handoff: Dict[int, int] = {}
 
     # ---------------------------------------------------------------- state
     def _init_algo_state(self) -> None:
@@ -328,13 +468,16 @@ class BbcvcNode(BootstrapNode):
         # rewinds the phase, so the neighbours that were answered in the old
         # epoch must be answerable again in the new one; see the half-finished
         # undo class in BULGULAR sections 90, 92, 93 and 97.
-        self._answered_done: Set[int] = set()
+        self._answered_ms: Optional[int] = None   # when I last answered (F2)
         self._told_them_i_am_done: Optional[int] = None
         self._done_beacons: Dict[int, int] = {}
         self._repair_beacon = False
         self.owned: Set[Edge] = set()
         self._explicit: Dict[Edge, bool] = {}   # ownership settled by a transfer
         self.infeasible = False
+        #: F12b: the verdict of an in-network certificate this node computed
+        #: (the spanning-tree arm's core), None when it computed none.
+        self.cert_decided: Optional[bool] = None
         #: All three stages exhausted but there is no infeasibility WITNESS: the
         #: local rules could not repair this instance. Kept SEPARATE from
         #: INFEASIBLE, because the exact solver may call the instance feasible,
@@ -352,16 +495,52 @@ class BbcvcNode(BootstrapNode):
         # on a 15-node UDG edge (5,15) was left UNOWNED this way, with both
         # endpoints believing the other had taken it.
         self._pending: Dict[Tuple[int, int], Pending] = {}
-        self._fix_key: Optional[Tuple[int, int]] = None   # the one active HANDOVER/PUSH
+        #: The last HANDOVER/PUSH sent, a chain probe included, so it gates
+        #: `_fix_overload` but does not bound my open transfers (F14b does that).
+        self._fix_key: Optional[Tuple[int, int]] = None
         #: Edges this node has offered in THIS epoch. Cleared with everything
         #: else by `_init_algo_state`, which is what makes a late ACK from a
         #: cancelled epoch distinguishable from a late ACK of a live transfer.
         self._offered: Set[Edge] = set()
         #: Edge -> how many times I have taken it. See `Pending.e_take`.
         self._takes: Dict[Edge, int] = {}
-        self._seen: Dict[Tuple[int, int, int], bytes] = {}   # (peer,type,seq) -> reply
+        #: G7 (Amendment 13): edge -> completed transfers of it that I took part
+        #: in, as receiver (accept) or as sender (release on the answer). Both
+        #: ends agree once a transfer completes, so a request that carries an
+        #: older version was overtaken by a later transfer and is refused.
+        self._gen: Dict[Edge, int] = {}
+        #: peer -> {(type, seq): reply}, at most SEEN_PER_PEER per peer (F5)
+        self._seen: Dict[int, Dict[Tuple[int, int], bytes]] = {}
+        #: peer -> highest seq of a HANDOVER, PUSH or relay JOIN executed (F14)
+        self._mark: Dict[int, int] = {}
         self._push_job: Optional[PushJob] = None
+        #: F11b. The relayed invitation I am searching for; whether I have
+        #: served one in this epoch (each node serves at most one, which bounds
+        #: the search); whether I asked once for this neighbour signature.
+        self._far_job: Optional[FarJob] = None
+        self._far_served = False
+        self._far_sent = False
+        #: F17. The certificate wave I take part in: its initiator, my parent
+        #: in it (None at the initiator), the neighbours I still wait for, my
+        #: subtree's (sum of min(deg, k), sum of deg), and whether I finished.
+        self._cert_root: Optional[int] = None
+        self._cert_parent: Optional[int] = None
+        self._cert_waiting: Set[int] = set()
+        self._cert_sum: Tuple[int, int] = (0, 0)
+        self._cert_done = False
+        #: F17: sends of my CERT so far and the time of the next one (ProAsk).
+        self._cert_tries = 0
+        self._cert_next_ms = 0
+        #: F15. Neighbours that echoed the role and F I announced after my
+        #: DONE HELLO (None while nothing needs confirming), neighbours waiting
+        #: for my echo, and when I last asked.
+        self._confirmed: Optional[Set[int]] = None
+        self._echo_due: Set[int] = set()
+        self._confirm_ms: Optional[int] = None
         self._join_sent: Set[Tuple[int, int]] = set()        # (peer, reason)
+        #: JOINs a peer refused because it has not verified me (F7). Such a
+        #: peer will never join, so no rule waits for it.
+        self._join_refused: Set[Tuple[int, int]] = set()
         self._barrier_hits: Dict[int, int] = {}
         self._tried_set: Set[Tuple] = set()
         self._nbr_deg: Dict[int, int] = {}
@@ -375,11 +554,15 @@ class BbcvcNode(BootstrapNode):
         #: the very first tick. The baseline is set by
         #: `_establish_clock_baseline`.
         self._last_change_ms: Optional[int] = None
-        self._answered_done: Set[int] = set()
+        self._answered_ms: Optional[int] = None
         self._told_them_i_am_done: Optional[int] = None
         self._done_beacons: Dict[int, int] = {}
         self._repair_beacon = False
         self._hello_dirty = True
+        #: Phase-1a rule evaluations so far, and the 0-based evaluation at which
+        #: the MIS decision was made (measurement: the run's `mis_depth`).
+        self._mis_evals = 0
+        self.mis_round: Optional[int] = None
         self.hellos_periodic = 0
         self.hellos_change = 0
         self.escalations = 0
@@ -457,8 +640,14 @@ class BbcvcNode(BootstrapNode):
 
     @property
     def done(self) -> bool:
-        if self.phase < PH_DONE:
-            return False
+        # An open request or a push chain still running is unfinished work:
+        # with F1 a request stays open until it is answered. MEASURED without
+        # this clause on lossless asynchronous runs: the verdict came while
+        # DONE nodes were still servicing push chains, which then went on
+        # transmitting (n50_m300_s2: verdict 27.6 s instead of 40.3 s, 399
+        # frames after it). Synchronous runs were unaffected.
+        if self.phase < PH_DONE or not self._barrier_closed():
+            return False   # G4: done exactly when closed
         if self.p.enable_tree and self.role.in_backbone:
             return self.tree_finished
         return True
@@ -539,8 +728,37 @@ class BbcvcNode(BootstrapNode):
 
     # ----------------------------------------------------------- internals
     def _nbrs_active(self) -> List[BootNeighbor]:
-        """Only bidirectionally verified neighbours, in id order (determinism)."""
-        return [self.nbrs[i] for i in sorted(self.nbrs) if self.nbrs[i].is_edge]
+        """Verified neighbours of the epoch's FROZEN view, in id order (determinism).
+
+        Repair F4. Within an epoch the rules read the set frozen with the key, not
+        the live table: a record that blinks out for less than T_stab (no
+        restart) must not leave the barriers, F(v) or the ownership rule. Such a
+        neighbour is simply absent here, and `_view_stale` makes the rules wait
+        for it. Before the key freezes there is no frozen set and the live
+        verified records are the view.
+        """
+        ids = self.nbrs if self._frozen_bidir is None else self._frozen_bidir
+        return [self.nbrs[i] for i in sorted(ids)
+                if i in self.nbrs and self.nbrs[i].is_edge
+                and (self._frozen_bidir is None or self._in_epoch(self.nbrs[i]))]
+
+    def _in_epoch(self, x) -> bool:
+        """G1 (Amendment 13): was this record or HELLO announced in my epoch?
+
+        The one epoch test of the protocol. A record of an older epoch is kept
+        (liveness and the gate are properties of the link) but no rule reads
+        it: it counts as not yet heard, so the rules wait (the F4 wait)."""
+        return x.epoch == self.epoch
+
+    def _view_stale(self) -> bool:
+        """A frozen neighbour without a live verified record (repair F4): WAIT.
+
+        The wait is bounded: either the record comes back, or the difference
+        persists for T_stab and the epoch gate restarts the run.
+        """
+        return self._frozen_bidir is not None and any(
+            self._nbr(i) is None or not self._in_epoch(self.nbrs[i])
+            for i in self._frozen_bidir)
 
     def _mykey(self) -> Tuple[int, int]:
         return (self.key_fp, self.nid)
@@ -590,8 +808,11 @@ class BbcvcNode(BootstrapNode):
         return (n.key if n.key is not None else _KEY_INF, n.nid)
 
     def _keys_ready(self, nb: Sequence[BootNeighbor]) -> bool:
-        """Her komşunun anahtarı donmuş mu? Donmadıysa karar verilmez, beklenir."""
-        return self.key_fp is not None and all(n.key is not None for n in nb)
+        """Her komşunun anahtarı donmuş mu? Donmadıysa karar verilmez, beklenir.
+
+        A stale frozen neighbour (repair F4) also means wait."""
+        return (self.key_fp is not None and not self._view_stale()
+                and all(n.key is not None for n in nb))
 
     def _barrier(self, nb: Sequence[BootNeighbor], p: int) -> bool:
         """Yerel bariyer (brief §3.2): bütün komşular >= p. `settle_steps` adım üst
@@ -694,18 +915,22 @@ class BbcvcNode(BootstrapNode):
                 self.role = Role.OUT
                 self._touch()
             self.phase = PH_CONN
+            self.mis_round = self._mis_evals
             self._log("mis_decided", role="OUT", reason="no_incident_edges")
             return
+        self._mis_evals += 1
         mk = self._mykey()
         smaller = [n for n in nb if self._nkey(n) < mk]
         if any(n.role == Role.MIS for n in smaller):
             self.role = Role.OUT
             self.phase = PH_CONN
+            self.mis_round = self._mis_evals - 1
             self._log("mis_decided", role="OUT")
             self._touch()
         elif all(n.phase >= PH_CONN for n in smaller):
             self.role = Role.MIS
             self.phase = PH_CONN
+            self.mis_round = self._mis_evals - 1
             self._log("mis_decided", role="MIS")
             self._touch()
         # otherwise: wait. The decision is MONOTONE and never retracted.
@@ -827,7 +1052,14 @@ class BbcvcNode(BootstrapNode):
             self.phase = PH_OWN
             self._touch()
             return
-        for n in outs[:need]:
+        # F7: a refusing neighbour will never join; invite the next one, and
+        # if too few remain the overload goes on to Phase 4 to be reported.
+        open_ = [n for n in outs if (n.nid, JOIN_FORCED) not in self._join_refused]
+        if len(open_) < need:
+            self.phase = PH_OWN
+            self._touch()
+            return
+        for n in open_[:need]:
             if (n.nid, JOIN_FORCED) not in self._join_sent:
                 self._send_join(now, n, JOIN_FORCED)
 
@@ -916,6 +1148,7 @@ class BbcvcNode(BootstrapNode):
             self._stuck_steps = 0
             self._repair_rounds = 0
             self._push_ttl = self.p.push_ttl
+            self._far_sent = False
         self._recompute_owned(nb)
         if self.unresolved and len(self.owned) <= self.k:
             # THE FLAG DESCRIBES THE PRESENT STATE, NOT A MOMENT IN THE PAST.
@@ -946,6 +1179,14 @@ class BbcvcNode(BootstrapNode):
             return
         if len(self.owned) <= self.k or self._fix_key is not None:
             return
+        if self.infeasible:
+            # F12b: the network proved that no valid pair exists, so repairing
+            # is futile; say so instead of spending the rounds.
+            if not self.unresolved:
+                self.unresolved = True
+                self._log("repair_skipped", reason="certified", load=len(self.owned))
+                self._touch()
+            return
         self._fix_overload(now, nb)
 
     def _flex_peers(self, nb: Sequence[BootNeighbor]) -> List[BootNeighbor]:
@@ -964,6 +1205,10 @@ class BbcvcNode(BootstrapNode):
     def _fix_overload(self, now: int, nb: Sequence[BootNeighbor]) -> None:
         """Three stages: HANDOVER -> PUSH(ttl=D) -> escalation (JOIN). All monotone."""
         peers = self._flex_peers(nb)
+        # F14b: one own transfer per neighbour. A chain probe moves `_fix_key`,
+        # so an earlier transfer can still be open here; the next offer to that
+        # neighbour waits for its answer instead of offering the edge twice.
+        open_to = {p.peer for p in self._pending.values() if p.tag in ("handover", "push")}
         # stage 1: handover
         for n in peers:
             e = edge(self.nid, n.nid)
@@ -971,6 +1216,8 @@ class BbcvcNode(BootstrapNode):
                 continue
             if (n.nid, MsgType.HANDOVER, e) in self._tried:
                 continue
+            if n.nid in open_to:
+                return
             self._tried.add((n.nid, MsgType.HANDOVER, e))
             self._send_edge_msg(now, n, MsgType.HANDOVER, e, 0, tag="handover")
             return
@@ -979,6 +1226,8 @@ class BbcvcNode(BootstrapNode):
             e = edge(self.nid, n.nid)
             if (n.nid, MsgType.PUSH, e, self._push_ttl) in self._tried:
                 continue
+            if n.nid in open_to:
+                return
             self._tried.add((n.nid, MsgType.PUSH, e, self._push_ttl))
             self._send_edge_msg(now, n, MsgType.PUSH, e, self._push_ttl, tag="push")
             return
@@ -997,7 +1246,9 @@ class BbcvcNode(BootstrapNode):
                 self.escalations += 1
                 self._send_join(now, n, JOIN_ESCALATE)
                 return
-            return   # my invitees have not joined yet; too early to cry INFEASIBLE
+            if any((n.nid, JOIN_ESCALATE) not in self._join_refused for n in outs):
+                return   # my invitees have not joined yet; too early to cry INFEASIBLE
+            # F7: every outside neighbour refused; fall through to stage 3b.
 
         # stage 3b: RELAYED ESCALATION.
         #
@@ -1046,6 +1297,41 @@ class BbcvcNode(BootstrapNode):
             self._tried_set.clear()
             self._push_ttl = self.p.push_ttl
             self._log("repair_retry", round=self._repair_rounds)
+            return
+        if self._cert_root is None:
+            # REPAIR F17. Before the futile part can start, ask the network once
+            # whether the witness proves the instance infeasible. MEASURED
+            # without it: on infeasible n100_m800 every overloaded node deepened
+            # to n and the run took 5.2 times the slots of the run without F11.
+            self._cert_start(now)
+        cap = min(0xFF, self.p.n_bound or 0xFF, self.p.push_depth_max or 0xFF)  # F17b
+        if self._push_ttl < cap:
+            # REPAIR F11. The rounds above all push to depth D, so an existing
+            # reassignment path longer than D is never found and the node gave
+            # up on feasible instances (m = nk: 25 development runs ended
+            # unresolved). One more round at twice the depth, up to n - 1 hops.
+            # DOUBLING, NOT +1: both solve n200_m1200_s6 (depth 6 suffices),
+            # but on infeasible instances, where no depth helps, +1 steps cost
+            # 6.6x (n20_m160_s1) to 27x (n50_m300_s6) the frames of the run
+            # without F11 and doubling 2.4x to 4x: log(n) rounds instead of n.
+            self._push_ttl = min(cap, 2 * self._push_ttl)
+            self._tried_set.clear()
+            self._log("push_deepen", ttl=self._push_ttl)
+            return
+        if self._far_job is not None:
+            return
+        if not self._far_sent and not self._far_served:
+            # REPAIR F11b. Even the deepest push failed, so the cover itself
+            # may lack capacity where no invitation of mine reaches (the
+            # spanning-tree arm on n200_m1200 s3 and s10: 199 of 200 nodes,
+            # the outside node three hops away). Relay an invitation through
+            # the cover to a node that has an outside neighbour; it invites
+            # that neighbour, and I deepen once more (`_far_finish`).
+            self._far_sent = True
+            self._far_served = True
+            self._far_job = FarJob(src=None, seq=0)
+            self._log("far_start")
+            self._far_step(now)
             return
         # NO INFEASIBILITY IS DECLARED HERE. The reason is a MEASURED BUG.
         #
@@ -1111,17 +1397,21 @@ class BbcvcNode(BootstrapNode):
             return
         settled = (now - self._last_change_ms >= self.p.t_quiet_ms
                    and not self._pending and self._push_job is None
+                   and self._far_job is None
                    and (len(self.owned) <= self.k or self.infeasible
                         or self.unresolved))
         if self.phase == PH_OWN and settled:
             self.phase = PH_QUIET
             self._log("quiet")
             self._touch()
-        if self.phase == PH_QUIET and all(n.phase >= PH_QUIET for n in nb):
+        pending = self._unverified_pending(now)
+        if (self.phase == PH_QUIET and not pending
+                and all(n.phase >= PH_QUIET for n in nb)
+                and not self._silent_below_done(now, nb)):
             self.phase = PH_DONE
             self._log("done", weight=self.w, load=len(self.owned))
             self._touch()
-        elif self.phase == PH_DONE and any(n.phase < PH_QUIET for n in nb):
+        elif self.phase == PH_DONE and (pending or any(n.phase < PH_QUIET for n in nb)):
             # A neighbour produced new work. Since a DONE node is SILENT,
             # staying silent would feed it to that neighbour's soft-state timer
             # and start an epoch reset (measured). I drop back to QUIET and
@@ -1129,6 +1419,53 @@ class BbcvcNode(BootstrapNode):
             # DONE again.
             self.phase = PH_QUIET
             self._touch()
+
+    def _unverified_pending(self, now: int) -> bool:
+        """REPAIR F13: is a link still being established, so that DONE is early?
+
+        A neighbour I hear through an open gate but have not verified, while it
+        has not been silent for `_quiet_window_ms`, or a verified view that
+        differs from the frozen one (the epoch gate will restart). Before F13 a failed LINK
+        handshake was retried 12 periods later, often after the verdict: the
+        network then restarted after it (941 frames in 100 slots on the worked
+        example at 20 % loss), or the run ended valid only on a discovered graph
+        that lacked the planned link. A closed RSSI gate is not a link and does
+        not count, nor does a neighbour that has gone silent.
+        """
+        if self._diff_since_ms is not None:
+            return True
+        # G4 (Amendment 13): the wait has a bound. F13 waits for the retry of
+        # a failed handshake; a link whose handshake failed twice in this epoch
+        # is one-way (G2: only an end that hears the other answers) and is not
+        # waited for again.
+        # Note to Amendment 15: the same bound R as the freeze gate.
+        return any(n.link_up and not n.bidir
+                   and n.link_rounds < self.p.link_rounds_max
+                   and now - n.last_ms <= self._quiet_window_ms(n.nid)
+                   for n in self.nbrs.values())
+
+    def _silent_below_done(self, now: int, nb: Sequence[BootNeighbor]) -> bool:
+        """F13: a neighbour below DONE beacons every period, so one I have not
+        heard for its stale window is gone, or moved on with its HELLO lost.
+        Either way DONE waits: I hear it again, or `_expire` drops it after
+        `_quiet_window_ms` and the epoch restarts. Without this a QUIET node
+        went DONE on the last phase it had heard from a node switched off
+        while QUIET, and DONE never expires anybody."""
+        return any(n.phase < PH_DONE and now - n.last_ms > self.stale_ms(n.nid)
+                   for n in nb)
+
+    def _quiet_window_ms(self, nid: int) -> int:
+        """The silence a quiescent node tolerates before it calls a neighbour gone.
+
+        A live neighbour beacons at least once per stale window: every period
+        below DONE, once per window as a DONE node with an open barrier. My
+        record of its phase can be stale (its DONE HELLO lost), so the window
+        is counted in that slowest rate: `stale_periods` missed beacons.
+        MEASURED with the plain stale window instead, 20 % loss: QUIET nodes
+        expired DONE neighbours whose DONE HELLO they had missed, so restarts
+        rose and a pending neighbour looked gone after one lost slow beacon.
+        """
+        return self.stale_ms(nid) * self.p.stale_periods
 
     # ======================================================================
     # HELLO: the wire.py codec (NO SECOND COPY IS EVER OPENED)
@@ -1146,9 +1483,56 @@ class BbcvcNode(BootstrapNode):
         answering until it catches up; once every neighbour is DONE, everyone
         has what they need and the whole neighbourhood goes quiet together.
         """
-        return all(n.phase >= PH_DONE for n in self.nbrs.values() if n.is_edge)
+        return (not self._owes()
+                and all(n.phase >= PH_DONE for n in self._nbrs_active()))
+
+    def _owes(self) -> bool:
+        """G4 (Amendment 13): does this node still owe the network something?
+
+        An open request, a push chain, a relayed search or a certificate wave
+        in progress, an unconfirmed announcement (F15), a hand-off (F16b) or a
+        stale frozen record (F4, G1). A node that owes something is not closed:
+        it keeps beaconing and keeps expiring silent peers, so a departure of
+        the peer it waits for still ends in a restart and then in silence."""
+        # A LINK handshake in progress is a request as well (G3, G4).
+        return bool(self._pending or self._push_job is not None
+                    or bool(self._rxq)   # frames received, not yet processed
+                    or any(n.awaiting_ack for n in self.nbrs.values())
+                    or self._far_job is not None
+                    or (self._cert_root is not None and not self._cert_done)
+                    or bool(self._echo_due)   # an echo I owe (F15, G2c)
+                    or self._unconfirmed() or self._view_stale()
+                    or self._handoff_open())
+
+    def _handoff_wait_ms(self) -> int:
+        return 2 * self.p.stale_periods_cap * self.p.t_hello_ms
+
+    def _handoff_open(self) -> bool:
+        """REPAIR F16b: is a finished neighbour still owed my epoch?
+
+        A neighbour I held as DONE expired from my table. If it is alive it is
+        closed and silent, and only a HELLO of my epoch makes it adopt the
+        epoch, so I keep my barrier open and announce until I hear it in my
+        epoch or the hand-off wait has passed since my latest restart. A node
+        that really left costs one bounded wait, not a beacon for ever.
+        """
+        now = self.plat.now_ms()
+        for i in [i for i, t in self._handoff.items() if now >= t]:
+            del self._handoff[i]
+            self._log("handoff_timeout", peer=i)
+        return bool(self._handoff)
 
     def _maybe_hello(self, now: int) -> None:
+        self._echo_due.intersection_update(self.nbrs)
+        if self.phase >= PH_DONE:
+            # F15: a DONE node, closed or not, announces a new role or F at
+            # once and echoes for a neighbour that asked now, not a window later.
+            if not self._view_stale() and (self.role, self.forced_load()) != (
+                    self._adv_role, self._adv_forced):
+                self._touch()
+            if self._echo_due:
+                self._repair_beacon = True
+                self._hello_due_ms = 0
         due = self._last_hello_ms is None or now >= self._hello_due_ms
         if not (due or self._hello_dirty):
             return
@@ -1196,10 +1580,34 @@ class BbcvcNode(BootstrapNode):
             # same slot transmit in lockstep, while ordinary periodic hellos are
             # spread out.
             return
-        f = self.forced_load()
-        mis = self.mis_nbrs()
+        if self._view_stale():
+            # F4: waiting on a stale frozen neighbour. Repeat what I last said
+            # rather than re-derive F and the MIS list from a shrunken view.
+            f, mis = self._adv_forced, self._adv_mis
+        else:
+            f, mis = self.forced_load(), self.mis_nbrs()
         self.load = f          # bootstrap._hello_payload reads this field
+        if (self._told_them_i_am_done is not None
+                and (self.role, f) != (self._adv_role, self._adv_forced)):
+            self._confirmed, self._confirm_ms = set(), None   # F15
+        if (self.phase >= PH_DONE and self._confirmed is None
+                and getattr(self.p, "mutual_confirm", True)):
+            # G2 (Amendment 13): the first DONE HELLO asks every frozen
+            # neighbour to confirm that it holds me (and what I announce).
+            self._confirmed, self._confirm_ms = set(), None
+        # F15: ask with the announcement, then once per stale window, and echo
+        # at most ECHO_MAX askers per HELLO so that its size stays bounded.
+        self.hello_confirm = bool(self._unconfirmed()) and (
+            self._confirm_ms is None or now - self._confirm_ms >= self.p.t_stale_ms)
+        if self.hello_confirm:
+            self._confirm_ms = now
+        echo = sorted(self._echo_due)[:wire.ECHO_MAX]
+        self._echo_due.difference_update(echo)
+        self.hello_echo = tuple((i, int(self.nbrs[i].role), self.nbrs[i].load) for i in echo)
+        # F2: a DONE node still waiting for a neighbour says so on the air.
+        self.barrier_open = self.phase >= PH_DONE and not self._barrier_closed()
         self._bcast(self._hello_payload(mis))
+        self.hello_confirm, self.hello_echo = False, ()
         self._adv_forced = f            # the edge rule uses ONLY advertised values
         self._adv_role = self.role
         self._adv_mis = mis
@@ -1221,17 +1629,59 @@ class BbcvcNode(BootstrapNode):
         self._hello_due_ms = now + self.p.t_hello_ms
 
     def _expire(self, now: int) -> None:
-        """A quiescent node NEVER drops its neighbours.
+        """Only a DONE node with a CLOSED barrier never drops its neighbours.
 
-        The reasoning is a matching pair: a DONE node stops broadcasting, so a
-        neighbour that times it out changes its `bidir` set and starts an epoch
-        reset. Since a node can only become DONE when ALL its neighbours are at
-        >= QUIET, every neighbour of a silent node is inside this same gate; so
-        silence and expiry can never catch each other.
+        Such a node is silent and so are its neighbours, legitimately: a node
+        falls silent only once every neighbour is DONE. A neighbour that timed
+        it out would restart the network for nothing, so the time I spend
+        closed does not count (`_wake` on every closed tick).
+
+        REPAIR F13. Expiry used to stop at QUIET, so a node switched off while
+        its neighbours were QUIET or DONE stayed in their tables for ever
+        (worked example: removed at slot 50 the survivors kept claiming its
+        edges, bad_owner; node 4 removed at slot 46 and they never finished).
+        While I am QUIET, or DONE with an open barrier, every live neighbour is
+        heard at least once per stale window: below DONE it beacons every
+        period, and DONE with an open barrier it beacons once per window. A
+        QUIET node therefore expires a record silent for `_quiet_window_ms`.
+        A DONE node with an open barrier may also be waiting on a neighbour
+        that is DONE and closed (its DONE HELLO was lost), which only answers
+        my open-flag beacons (F2), so it uses `_done_window_ms`. Either window
+        is per neighbour and grows with F9. An expired record is a node that
+        left: the view change restarts the epoch, and the survivors rebuild
+        without it. Only after every node is DONE with a closed barrier
+        is nothing transmitted that could reveal an absence; that is the scope
+        of a one-shot construction.
         """
-        if self.phase >= PH_QUIET:
+        if self.phase >= PH_DONE and self._barrier_closed():
+            self._wake(now)
             return
+        held = [i for i, n in self.nbrs.items() if n.phase >= PH_DONE]
         super()._expire(now)
+        for i in held:
+            if i not in self.nbrs:
+                self._handoff[i] = now + self._handoff_wait_ms()   # F16b
+                self._log("handoff", peer=i)
+
+    def _expiry_ms(self, nbr: BootNeighbor) -> Optional[int]:
+        if self.phase < PH_QUIET:
+            return super()._expiry_ms(nbr)
+        if self.phase == PH_QUIET:
+            return self._quiet_window_ms(nbr.nid)
+        return self._done_window_ms(nbr.nid)
+
+    def _done_window_ms(self, nid: int) -> int:
+        """The silence an open DONE node tolerates (F13).
+
+        A closed neighbour is heard only through F2: it answers after two of
+        my open-flag beacons, then at most once per stale window, and each
+        answer needs two frames to get through, mine and its own. So the
+        window is twice `stale_periods` attempts plus the two beacons F2
+        waits for: (2 * stale_periods + 2) stale windows, 24 periods at the
+        defaults. With the QUIET window (9 periods) instead, the 20-slot
+        outage of scenario D restarted the network.
+        """
+        return self.stale_ms(nid) * (2 * self.p.stale_periods + 2)
 
     def _wake(self, now: int) -> None:
         """Leaving quiescence RESETS the soft-state TIMERS.
@@ -1281,9 +1731,65 @@ class BbcvcNode(BootstrapNode):
         here.
         """
         super()._on_hello(now, src_mac, rssi, h)
+        if self._in_epoch(h) and self._handoff.pop(h.src, None) is not None:
+            self._log("handoff_heard", peer=h.src)   # F16b: it has my epoch
         if h.src != self.nid and h.src in self.nbrs:
             self._nbr_deg[h.src] = h.deg
+        if (getattr(h, "infeasible", False) and self._in_epoch(h)
+                and h.src in (self._frozen_bidir or ()) and self._nbr(h.src)):
+            self._certify("hello")   # F12b: the verdict reaches every node
+        self._confirm_state(h)
         self._answer_a_neighbour_still_waiting(now, h)
+
+    def _unconfirmed(self) -> Set[int]:
+        """F15: frozen neighbours that have not echoed what I announced after DONE.
+
+        Counted over the frozen view, not the live records: a neighbour that
+        expires stays owed until the epoch restarts, so a run is never done on
+        the gap between the expiry and the restart."""
+        if self._confirmed is None:
+            return set()
+        return set(self._frozen_bidir or ()) - self._confirmed
+
+    def _confirm_state(self, h) -> None:
+        """REPAIR F15: confirmed state.
+
+        The flexible-edge rule reads the forced load each end last heard from
+        the other. A closed node neither beacons nor expires records, so when
+        every HELLO that carries a neighbour's new role or F is lost it keeps
+        the old value, the network still falls silent, and both ends of their
+        flexible edge take it (two constructed runs, Amendment 9).
+
+        Only a change made after my DONE HELLO can be missed that way: a
+        barrier closes on DONE records, and a DONE HELLO carries everything I
+        changed before it. Such a change is therefore asked for in my HELLO,
+        and every frozen neighbour, whatever its role, echoes what it holds in
+        its own next HELLO; a role change can turn an edge to a neighbour I
+        record as OUT into a flexible one, so none is left out. An echo counts
+        only when it equals what I advertise. After DONE a role only rises and
+        F only falls, so an equal echo is never an older value. A neighbour
+        that never echoes is expired like any silent one, since my barrier is
+        open while I wait, and the view change restarts the epoch: a departure
+        still ends in silence (F13).
+        """
+        if not self._in_epoch(h) or h.src == self.nid:
+            return
+        if (self._confirmed is not None
+                and (self.nid, int(self._adv_role), self._adv_forced) in h.echo):
+            self._confirmed.add(h.src)
+        if h.confirm and h.src in self.nbrs and h.src in (self._frozen_bidir or ()):
+            # G2 (Amendment 13): an echo says "you are in my frozen view", so a
+            # node echoes only a neighbour it holds; a one-sided edge stays
+            # unconfirmed at the end that holds it, which keeps beaconing until
+            # the other end verifies it and the view difference restarts.
+            self._echo_due.add(h.src)
+
+    def _certify(self, via: str) -> None:
+        """F12b: the instance is proved infeasible; say so, once per epoch."""
+        if not self.infeasible:
+            self.infeasible = True
+            self._log("infeasible_certified", via=via)
+            self._touch()
 
     def _answer_a_neighbour_still_waiting(self, now: int, h) -> None:
         """A BEACON FROM A FINISHED NODE MEANS IT HAS NOT HEARD MINE.
@@ -1306,10 +1812,18 @@ class BbcvcNode(BootstrapNode):
         self-defeating: once a closed node replies, "a DONE node only beacons
         when open" stops being true, two closed nodes answer each other for ever
         and NOTHING terminates. MEASURED that way: 0 of 9 lossless runs and 0 of
-        45 lossy ones converged. So each neighbour is answered at most once per
-        DONE epoch, which keeps the exchange finite while still repairing the
-        stale half; if that one answer is lost as well, the beacon is left to
-        the neighbour and this node says nothing more.
+        45 lossy ones converged.
+
+        REPAIR F2 (R1 audit). The submitted rule answered each neighbour once
+        per DONE epoch, so losing my DONE HELLO AND that one answer left the
+        neighbour beaconing for ever (scenario D). Now the beacon says what it
+        is: HELLO carries an open-barrier flag, set only by a DONE node whose
+        barrier is open. I answer an open-flag beacon at most once per stale
+        window, as often as the neighbour keeps asking; the answer is a
+        broadcast, so one per window serves every neighbour that is waiting.
+        It is sent with my barrier closed, so its flag is clear and it can
+        never trigger an answer itself. Once every barrier is closed nobody
+        beacons, and the network is silent for good.
 
         MEASURED on the discovered n15_m90 s3 graph at five per cent loss, seed
         1: all fifteen nodes reached PH_DONE with a valid cover, yet nodes 10,
@@ -1320,6 +1834,8 @@ class BbcvcNode(BootstrapNode):
             return
         if getattr(h, "phase", 0) < PH_DONE or h.src == self.nid:
             return
+        if not getattr(h, "barrier_open", False):
+            return                       # F2: a closed barrier is not waiting
         # ONLY AFTER MY OWN DONE HELLO HAS GONE OUT. Until then a neighbour's
         # beacon is not evidence of anything: it simply has not heard me YET,
         # which is ordinary propagation and not a loss. Answering that early
@@ -1343,19 +1859,19 @@ class BbcvcNode(BootstrapNode):
         # separation both backends compute alike.
         if self._told_them_i_am_done is None or not self._barrier_closed():
             return
-        if h.src in self._answered_done:
-            return
         seen = self._done_beacons.get(h.src, 0) + 1
         self._done_beacons[h.src] = seen
         if seen < 2:
             return
+        if self._answered_ms is not None and now - self._answered_ms < self.p.t_stale_ms:
+            return                       # F2: at most once per stale window
         # A LIVENESS BEACON, NOT AN EVENT. `_hello_dirty` marks a HELLO that
         # carries a STATE CHANGE, and the counter split exists to keep those two
         # apart. This repair changes nothing about my state; it repeats a fact I
         # already announced. Routing it through `_hello_dirty` would have moved
         # it into the event column (109 to 113 on the worked example) and made
         # the split say something untrue, so it is sent as what it is.
-        self._answered_done.add(h.src)
+        self._answered_ms = now          # one broadcast answers every waiting neighbour
         self._repair_beacon = True
         self._hello_due_ms = 0
 
@@ -1375,7 +1891,7 @@ class BbcvcNode(BootstrapNode):
 
     def _send_join(self, now: int, n: BootNeighbor, code: int) -> None:
         seq = self._next_seq()
-        payload = wire.encode(wire.Join(MsgType.JOIN, self.nid, seq, code))
+        payload = wire.encode(wire.Join(MsgType.JOIN, self.nid, seq, code, self.epoch))
         self._join_sent.add((n.nid, code))
         self._arm(now, Pending(seq=seq, peer=n.nid, mtype=MsgType.JOIN,
                                payload=payload, tag=f"join{code}"))
@@ -1384,15 +1900,33 @@ class BbcvcNode(BootstrapNode):
     def _send_edge_msg(self, now: int, n: BootNeighbor, mt: MsgType,
                        e: Edge, ttl: int, tag: str) -> None:
         seq = self._next_seq()
-        payload = wire.encode(wire.EdgeMsg(mt, self.nid, seq, e[0], e[1], ttl))
+        payload = self._edge_payload(mt, seq, e, ttl)
         p = Pending(seq=seq, peer=n.nid, mtype=mt, payload=payload, e=e,
                     e_take=self._takes.get(e, 0) if e is not None else 0,
                     ttl=ttl, tag=tag)
         if mt in (MsgType.HANDOVER, MsgType.PUSH):
+            # G4 (Amendment 13, third note): an answer I owe (F10's late
+            # acknowledgement) is cancelled only when the edge is released,
+            # never by a new offer of it. Cancelled here, the peer kept its
+            # claim while my version had advanced (G7), and every later
+            # transfer between us was refused as stale (n6a106 k2).
             self._offered.add(e)
         self._arm(now, p)
         self._fix_key = (n.nid, seq)
         self._ucast(n, payload)
+
+    def _edge_payload(self, mt: MsgType, seq: int, e: Edge, ttl: int = 0) -> bytes:
+        """An edge message stamped with my epoch (repair F3) and, on a request,
+        with my transfer version of the edge (G7)."""
+        return wire.encode(wire.EdgeMsg(mt, self.nid, seq, e[0], e[1], ttl, self.epoch,
+                                        self._gen.get(e, 0) & 0xFF))
+
+    def _stale_version(self, msg, e: Edge) -> bool:
+        """G7: was this request sent before a transfer of `e` that completed?"""
+        return (getattr(msg, "gen", 0) & 0xFF) != (self._gen.get(e, 0) & 0xFF)
+
+    def _bump(self, e: Edge) -> None:
+        self._gen[e] = self._gen.get(e, 0) + 1
 
     def _timeout_of(self, p: Pending) -> int:
         """PUSH is a CHAIN: an intermediate node asks its own question and waits,
@@ -1407,31 +1941,84 @@ class BbcvcNode(BootstrapNode):
         p.next_ms = now + self._timeout_of(p)
         self._pending[(p.peer, p.seq)] = p
 
+    def _backoff_ms(self, p: Pending, attempts: int) -> int:
+        """The wait after the `attempts`-th send: doubling, capped at R_max sends."""
+        return self._timeout_of(p) * 2 ** min(attempts - 1, self.p.ack_max_attempts - 1)
+
     def _retry_pending(self, now: int) -> None:
-        """THE single retransmission point. `log("retx")` lives here and only here."""
+        """THE single retransmission point. `log("retx")` lives here and only here.
+
+        REPAIR F1 (R1 audit). HANDOVER and PUSH are retransmitted with capped
+        backoff UNTIL A REPLY ARRIVES. Giving up after R_max and keeping the
+        edge was the double-ownership path: the receiver commits before it
+        acknowledges, so three lost acknowledgements left both ends owning the
+        edge (scenario C). They end only on a reply, an epoch restart (which
+        clears `_pending`) or a peer that left the epoch's verified view.
+
+        A JOIN still gives up after R_max, and is then RE-ARMED: its
+        `_join_sent` mark is removed, so the rule that sent it sends a fresh
+        one while its trigger still holds. Keeping the mark was the stall of
+        scenario B: three lost copies left the sender waiting for ever on an
+        invitee that never heard it.
+        """
         for key in sorted(self._pending):
             p = self._pending.get(key)
             if p is None or now < p.next_ms:
                 continue
             n = self._nbr(p.peer)
-            if p.attempts >= self.p.ack_max_attempts or n is None:
+            if n is None and p.peer in (self._frozen_bidir or ()):
+                continue                 # F4: stale frozen neighbour, wait
+            if n is None:
+                # G3 (Amendment 13): a request ends on its reply or the epoch;
+                # only a peer outside my frozen view ends it here.
                 self._pending.pop(key, None)
                 self._log("ack_gave_up", peer=p.peer, tag=p.tag, attempts=p.attempts)
+                if p.mtype is MsgType.JOIN:
+                    self._join_sent.discard((p.peer, wire.decode(p.payload).code))
                 # An exhausted request is treated LIKE A NACK. Otherwise a PUSH
                 # chain hangs forever in its `probing` field and the node never
                 # repairs its own overload again (a measured deadlock).
                 self._resolve(now, p, ok=False)
                 continue
             p.attempts += 1
-            p.next_ms = now + self._timeout_of(p) * (2 ** (p.attempts - 1))
+            p.next_ms = now + self._backoff_ms(p, p.attempts)
             self._log("retx", n=1, peer=p.peer, tag=p.tag, attempt=p.attempts)
             self._ucast(n, p.payload)   # SAME seq: the receiver is idempotent
+        if self._cert_waiting and now >= self._cert_next_ms:
+            self._cert_send(now)        # F17: the wave's requests too
 
     def _reply(self, peer: int, payload: bytes, key: Tuple[int, int, int]) -> None:
         n = self._nbr(peer)
-        self._seen[key] = payload
+        self._seen_put(key, payload)
         if n is not None:
             self._ucast(n, payload)
+
+    def _seen_get(self, key: Tuple[int, int, int]) -> Optional[bytes]:
+        return self._seen.get(key[0], {}).get(key[1:])
+
+    def _seen_put(self, key: Tuple[int, int, int], payload: bytes) -> None:
+        """Cache a reply for replay; the oldest of a peer's entries goes first (F5)."""
+        cache = self._seen.setdefault(key[0], {})
+        cache.pop(key[1:], None)
+        cache[key[1:]] = payload
+        while len(cache) > SEEN_PER_PEER:
+            del cache[next(iter(cache))]
+
+    def _repeated(self, peer: int, seq: int) -> bool:
+        """F14: is a request that missed the cache at or below the peer's mark?
+
+        The mark is the highest seq of a state-changing request (HANDOVER, PUSH,
+        relay JOIN) I executed from that peer in this epoch; a request above it
+        becomes the new mark. One at or below it was executed already and its
+        reply evicted, or it was overtaken by a later one whose copy got through
+        first; either way it is answered from my state and not executed. Seqs
+        are 16-bit serial numbers (RFC 1982), as `_next_seq` wraps.
+        """
+        mark = self._mark.get(peer)
+        if mark is not None and not 0 < ((seq - mark) & 0xFFFF) < 0x8000:
+            return True
+        self._mark[peer] = seq
+        return False
 
     # ======================================================================
     # ALGORITHM MESSAGE HANDLERS (.tex "message handlers")
@@ -1439,24 +2026,57 @@ class BbcvcNode(BootstrapNode):
     def _on_algo(self, now: int, src_mac: int, msg) -> None:
         peer = msg.src
         n = self.nbrs.get(peer)
-        if n is None or n.mac != src_mac or not n.is_edge:
-            return                       # unknown or unverified neighbour
+        if n is None or n.mac != src_mac:
+            return                       # unknown neighbour
+        if not n.is_edge:
+            if peer in (self._frozen_bidir or ()):
+                return                   # G3: a frozen neighbour re-verifying: wait
+            self._refuse(n, msg)         # F7: heard but not verified
+            return
+        if self._frozen_bidir is not None and peer not in self._frozen_bidir:
+            return                       # F4: outside this epoch's frozen view
         mt = msg.mtype
+        if (mt in (MsgType.JOIN, MsgType.HANDOVER, MsgType.PUSH, MsgType.CERT)
+                and self._view_stale()):
+            # G1 (Amendment 13, third note): a request is decided over my frozen
+            # view, so it waits while that view is stale, like every rule; the
+            # sender repeats it (G3).
+            return
+        if mt in wire.EPOCH_TYPES and msg.epoch != self.epoch:
+            # F3: a request or reply that outlived an epoch restart. Without
+            # the byte, a JOIN of the old epoch delivered after my reset was
+            # processed as new, because `_seen` is cleared at the restart.
+            self._log("epoch_mismatch_drop", peer=peer, mtype=int(mt), epoch=msg.epoch)
+            return
         if mt is MsgType.JOIN:
             self._on_join(now, n, msg)
         elif mt is MsgType.JOIN_ACK:
-            self._on_ack(now, peer, msg.seq, ok=True)
+            p = self._pending.get((peer, msg.seq))
+            if not msg.code and p is not None and p.tag != "far":
+                self._join_refused.add((peer, wire.decode(p.payload).code))   # F7
+            self._on_ack(now, peer, msg.seq, ok=bool(msg.code))
         elif mt is MsgType.HANDOVER:
             self._on_handover(now, n, msg)
         elif mt is MsgType.PUSH:
             self._on_push(now, n, msg)
+        elif mt is MsgType.PUSH_ACK and msg.ttl == LATE_CONFIRM:
+            if self._pending.pop((peer, _LATE_KEY | msg.seq), None) is not None:
+                self._log("late_ack_confirmed", peer=peer, edge=edge(msg.u, msg.v))
         elif mt in (MsgType.HANDOVER_ACK, MsgType.PUSH_ACK):
             if (peer, msg.seq) in self._pending:
                 self._on_ack(now, peer, msg.seq, ok=True)
             else:
                 self._on_late_ack(now, n, msg)
+            if mt is MsgType.PUSH_ACK and msg.ttl == LATE_ASK:
+                # F10: confirm every copy; a confirmation carries no state.
+                self._ucast(n, self._edge_payload(MsgType.PUSH_ACK, msg.seq,
+                                                  edge(msg.u, msg.v), LATE_CONFIRM))
         elif mt in (MsgType.HANDOVER_NACK, MsgType.PUSH_NACK):
             self._on_ack(now, peer, msg.seq, ok=False)
+        elif mt is MsgType.CERT:
+            self._on_cert(now, n, msg.seq, msg.ttl)
+        elif mt is MsgType.CERT_ACK:
+            self._on_cert_ack(now, n, msg.seq, msg.u, msg.v)
         elif mt is MsgType.TREE:
             self._on_tree(now, n, msg)
         elif mt is MsgType.STABLE:
@@ -1464,24 +2084,211 @@ class BbcvcNode(BootstrapNode):
         elif mt is MsgType.FINISH:
             self._on_finish(now, n, msg)
 
+    def _refuse(self, n: BootNeighbor, msg) -> None:
+        """REPAIR F7: refuse a request from a peer I hear but have not verified.
+
+        With one-way gates (emulated backend) the sender verified me while I
+        never verified it, so it keeps the edge in its view and, with F1,
+        retransmits its request until it is answered. Dropping the request
+        therefore stalled the sender for good: on the worked example a weak
+        direction on any of 13 of the 30 directed links left a request
+        unanswered for the whole budget (sync). A refusal is safe because I take
+        nothing: HANDOVER and PUSH get their NACK, a JOIN gets a JOIN_ACK with
+        the accept flag cleared. Replies are not cached; they carry no state.
+        """
+        mt = msg.mtype
+        if mt not in (MsgType.JOIN, MsgType.HANDOVER, MsgType.PUSH):
+            return
+        if msg.epoch != self.epoch:
+            return                       # F3: a stale request is not answered
+        if mt is MsgType.JOIN:
+            payload = wire.encode(wire.Join(MsgType.JOIN_ACK, self.nid, msg.seq, 0, self.epoch))
+        else:
+            nack = MsgType.HANDOVER_NACK if mt is MsgType.HANDOVER else MsgType.PUSH_NACK
+            payload = self._edge_payload(nack, msg.seq, edge(msg.u, msg.v))
+        job = self._push_job
+        if mt is MsgType.PUSH and job is not None and (job.src, job.seq) == (n.nid, msg.seq):
+            # F14b: a copy of the PUSH my chain serves; as with F10's busy refusal
+            # the sender gives up on it, so my chain's answer must be the late one.
+            job.nacked = True
+        self._log("refused_unverified", peer=n.nid, mtype=int(mt))
+        self._ucast(n, payload)
+
     def _on_join(self, now: int, n: BootNeighbor, msg) -> None:
         """Someone invites me into the cover. Idempotent: I ACK even if already in."""
         key = (n.nid, int(MsgType.JOIN), msg.seq)
-        if key in self._seen:
-            self._reply(n.nid, self._seen[key], key)
+        cached = self._seen_get(key)
+        if cached is not None:
+            self._reply(n.nid, cached, key)
+            return
+        if msg.code == JOIN_FAR:
+            job = self._far_job
+            if job is not None and (job.src, job.seq) == (n.nid, msg.seq):
+                return                   # F11b: still searching; it is answered later
+            if self._far_served or job is not None:
+                self._reply(n.nid, wire.encode(wire.Join(
+                    MsgType.JOIN_ACK, self.nid, msg.seq, 0, self.epoch)), key)
+                return                   # F11b: visited in this epoch
+            self._far_served = True
+            self._far_job = FarJob(src=n.nid, seq=msg.seq)
+            self._log("far_relay", by=n.nid)
+            self._far_step(now)
             return
         if msg.code == JOIN_RELAY:
             # "Escalate on my behalf." I am already in the cover; what I must do
             # is invite MY OWN outside neighbour, so one of my forced edges
             # becomes flexible and I have budget to give the asker.
-            self._relay_escalate(now)
+            if not self._repeated(n.nid, msg.seq):   # F14
+                self._relay_escalate(now)
         elif self.role == Role.OUT:
             self.role = Role.CONNECTOR if msg.code == JOIN_CONNECTOR else Role.COVER
             self.phase = max(self.phase, PH_FORCED)
             self._log("joined", by=n.nid, reason=msg.code, role=self.role.name)
             self._touch()
-        ack = wire.encode(wire.Join(MsgType.JOIN_ACK, self.nid, msg.seq, 1))
+        ack = wire.encode(wire.Join(MsgType.JOIN_ACK, self.nid, msg.seq, 1, self.epoch))
         self._reply(n.nid, ack, key)
+
+    def _far_step(self, now: int) -> None:
+        """F11b: invite my outside neighbour, else relay to the next cover neighbour.
+
+        A depth-first search over the cover. Each node serves one search per
+        epoch, so a search costs at most two frames per cover edge, and every
+        relay is a persistent request (F1) tagged with the epoch (F3).
+        """
+        job = self._far_job
+        if job is None or job.probing is not None:
+            return
+        nb = self._nbrs_active()
+        outs = sorted((x for x in nb if x.role == Role.OUT and x.key is not None
+                       and (x.nid, JOIN_ESCALATE) not in self._join_refused),
+                      key=self._nkey)
+        if outs and job.src is not None:
+            x = outs[0]
+            if (x.nid, JOIN_ESCALATE) not in self._join_sent:
+                self.escalations += 1
+                self._log("far_escalate", to=x.nid)
+                self._send_join(now, x, JOIN_ESCALATE)
+            self._far_finish(now, True)
+            return
+        for x in sorted((x for x in nb if x.role.in_cover), key=self._nkey):
+            if x.nid == job.src or x.nid in job.tried:
+                continue
+            job.tried.add(x.nid)
+            job.probing = x.nid
+            seq = self._next_seq()
+            payload = wire.encode(wire.Join(MsgType.JOIN, self.nid, seq, JOIN_FAR, self.epoch))
+            self._arm(now, Pending(seq=seq, peer=x.nid, mtype=MsgType.JOIN,
+                                   payload=payload, tag="far"))
+            self._ucast(x, payload)
+            return
+        self._far_finish(now, False)
+
+    def _far_finish(self, now: int, found: bool) -> None:
+        job, self._far_job = self._far_job, None
+        if job is None:
+            return
+        if job.src is not None:
+            key = (job.src, int(MsgType.JOIN), job.seq)
+            self._reply(job.src, wire.encode(wire.Join(
+                MsgType.JOIN_ACK, self.nid, job.seq, int(found), self.epoch)), key)
+            return
+        # The origin deepens once more from the start: the cover may have grown
+        # anywhere, also through another node's search.
+        self._log("far_done", found=found)
+        self._tried_set.clear()
+        self._push_ttl = self.p.push_ttl
+
+    # ------------------------------------------------ F17 certificate wave
+    def _cert_own(self) -> Tuple[int, int]:
+        d = self.deg or 0
+        return min(d, self.k), d
+
+    def _cert_join(self, now: int, root: int, parent: Optional[int]) -> None:
+        """Join the wave of `root`: forward it to every other frozen neighbour.
+
+        An echo algorithm with extinction: a smaller initiator replaces a larger
+        one. A neighbour already in my wave answers my CERT with its own CERT,
+        which counts as its reply. The wave reads the FROZEN view: a neighbour
+        that is stale for a moment is still waited for, so no node's term is
+        left out of the sums. A wave that cannot complete certifies nothing.
+        """
+        self._cert_root, self._cert_parent = root, parent
+        self._cert_sum = self._cert_own()
+        self._cert_done = False
+        self._cert_waiting = set(self._frozen_bidir) - {parent}
+        self._cert_tries = 0
+        self._cert_send(now)
+        self._cert_check(now)
+
+    def _cert_send(self, now: int) -> None:
+        """(Re)send my CERT request (ttl 1) to every neighbour I still wait for,
+        with the capped doubling backoff of the other requests (ProAsk)."""
+        self._cert_tries += 1
+        self._cert_next_ms = now + self.p.ack_timeout_ms * 2 ** min(
+            self._cert_tries - 1, self.p.ack_max_attempts - 1)
+        payload = self._edge_payload(MsgType.CERT, self._cert_root, (0, 0), ttl=1)
+        for i in sorted(self._cert_waiting):
+            x = self._nbr(i)
+            if x is not None:
+                self._ucast(x, payload)
+
+    def _cert_start(self, now: int) -> None:
+        self._log("cert_wave_start")
+        self._cert_join(now, self.nid, None)
+
+    def _on_cert(self, now: int, n: BootNeighbor, root: int, ttl: int) -> None:
+        if self.deg is None:
+            return                     # no frozen view yet: the sender repeats
+        if self._cert_root is None or root < self._cert_root:
+            self._cert_join(now, root, n.nid)
+        elif root != self._cert_root:
+            return                     # a wave that has lost to mine
+        elif n.nid in self._cert_waiting:
+            self._cert_waiting.discard(n.nid)   # a neighbour inside my wave
+            self._cert_check(now)
+        elif ttl and n.nid == self._cert_parent:
+            if self._cert_done:
+                self._cert_ack()       # my CERT_ACK was lost: send it again
+        elif ttl:
+            # My CERT to n was lost and n repeats its own. Answer with a reply
+            # (ttl 0), which is never answered, so two nodes cannot ping-pong.
+            self._ucast(n, self._edge_payload(MsgType.CERT, root, (0, 0)))
+
+    def _on_cert_ack(self, now: int, n: BootNeighbor, root: int, cap: int,
+                     degs: int) -> None:
+        if root != self._cert_root or n.nid not in self._cert_waiting:
+            return
+        self._cert_waiting.discard(n.nid)
+        c, d = self._cert_sum
+        self._cert_sum = (c + cap, d + degs)
+        self._cert_check(now)
+
+    def _cert_check(self, now: int) -> None:
+        if self._cert_done or self._cert_waiting:
+            return
+        self._cert_done = True
+        cap, degs = self._cert_sum
+        if self._cert_parent is None:
+            # degs = 2m of my component of the discovered graph. Owned edges
+            # number at most sum of min(deg, k), so a sum below m proves the
+            # instance infeasible; m > nk implies it. A sum that overflowed a
+            # 16-bit field arrives as (0xFFFF, 0) and can never fire.
+            bad = 2 * cap < degs
+            self.cert_decided = bad
+            self._log("cert_wave_done", cap_sum=cap, deg_sum=degs, infeasible=bad)
+            if bad:
+                self._certify("wave")
+            return
+        self._cert_ack()
+
+    def _cert_ack(self) -> None:
+        cap, degs = self._cert_sum
+        if cap > 0xFFFF or degs > 0xFFFF:
+            cap, degs = 0xFFFF, 0
+        p = self._nbr(self._cert_parent)
+        if p is not None:
+            self._ucast(p, self._edge_payload(MsgType.CERT_ACK, self._cert_root,
+                                              (cap, degs)))
 
     def _relay_escalate(self, now: int) -> None:
         """At a neighbour's request, invite MY OWN outside neighbour (stage 3b)."""
@@ -1503,13 +2310,20 @@ class BbcvcNode(BootstrapNode):
         """Someone wants to hand me an edge. If I accept I reserve FIRST and ACK
         AFTERWARDS; the sender counts the edge as its own until it sees the ACK."""
         key = (n.nid, int(MsgType.HANDOVER), msg.seq)
-        if key in self._seen:
-            self._reply(n.nid, self._seen[key], key)
+        cached = self._seen_get(key)
+        if cached is not None:
+            self._reply(n.nid, cached, key)
             return
         e = edge(msg.u, msg.v)
-        ok = not self._yields_to_inbound(e, n) and self._accept_edge(e)
+        if self._repeated(n.nid, msg.seq):
+            ok = self._explicit.get(e) is True   # F14: held by a transfer?
+        elif self._stale_version(msg, e):
+            ok = False                           # G7: overtaken by a later transfer
+            self._log("stale_version", peer=n.nid, edge=e)
+        else:
+            ok = not self._yields_to_inbound(e, n) and self._accept_edge(e)
         mt = MsgType.HANDOVER_ACK if ok else MsgType.HANDOVER_NACK
-        self._reply(n.nid, wire.encode(wire.EdgeMsg(mt, self.nid, msg.seq, e[0], e[1])), key)
+        self._reply(n.nid, self._edge_payload(mt, msg.seq, e), key)
 
     def _yields_to_inbound(self, e: Edge, peer: BootNeighbor) -> bool:
         """Break the MUTUAL transfer race for the same edge, deterministically.
@@ -1531,7 +2345,8 @@ class BbcvcNode(BootstrapNode):
         tie this breaks on the key, so the two ends can NEVER decide the same
         way and there is no deadlock: exactly one transfer proceeds.
         """
-        mine_pending = any(p.e == e for p in self._pending.values())
+        mine_pending = any(p.e == e and p.mtype in (MsgType.HANDOVER, MsgType.PUSH)
+                           for p in self._pending.values())
         return mine_pending and self._mykey() < self._nkey(peer)
 
     def _accept_edge(self, e: Edge) -> bool:
@@ -1566,39 +2381,70 @@ class BbcvcNode(BootstrapNode):
             # once F changes and the rule flips the edge is left UNOWNED.
             # Measured: on a 20-node UDG, (5,6) and (5,10) fell through this way.
             self._explicit[e] = True
+            self._bump(e)   # G7: the receiver's side of a completed transfer
             return True
         if len(self.owned) >= self.k:
             return False
         self._explicit[e] = True
+        self._bump(e)       # G7
         self.owned.add(e)
         self._touch()
         return True
 
+    def _has_room(self, e: Edge) -> bool:
+        """F14b: would `_accept_edge(e)` succeed? The same tests, no side effect."""
+        return self._explicit.get(e) is True or e in self.owned or len(self.owned) < self.k
+
     def _release_edge(self, e: Edge) -> None:
+        self._bump(e)   # G7: the sender's side of a completed transfer
         self._explicit[e] = False
         self.owned.discard(e)
+        self._drop_late_ack(e)
         self._touch()
+
+    def _drop_late_ack(self, e: Edge) -> None:
+        """F10: once I give the edge away, my late "I took it" is moot; a copy
+        sent after that could release an edge the peer has taken back."""
+        for key in [k for k, p in self._pending.items()
+                    if p.mtype is MsgType.PUSH_ACK and p.e == e]:
+            del self._pending[key]
 
     def _on_push(self, now: int, n: BootNeighbor, msg) -> None:
         """A chained transfer. With free budget it behaves like a handover;
         without it I push one of my own edges to another neighbour (ttl-1) and
         the chain grows that way."""
         key = (n.nid, int(MsgType.PUSH), msg.seq)
-        if key in self._seen:
-            self._reply(n.nid, self._seen[key], key)
+        cached = self._seen_get(key)
+        if cached is not None:
+            self._reply(n.nid, cached, key)
             return
         e = edge(msg.u, msg.v)
-        if self._yields_to_inbound(e, n):
-            self._reply(n.nid, wire.encode(wire.EdgeMsg(
-                MsgType.PUSH_NACK, self.nid, msg.seq, e[0], e[1])), key)
+        job = self._push_job
+        busy = job is not None and (job.src, job.seq) == (n.nid, msg.seq)
+        if not busy and self._repeated(n.nid, msg.seq):
+            # F14: answered like a HANDOVER
+            mt = MsgType.PUSH_ACK if self._explicit.get(e) is True else MsgType.PUSH_NACK
+            self._reply(n.nid, self._edge_payload(mt, msg.seq, e), key)
             return
-        if self._accept_edge(e):
-            self._reply(n.nid, wire.encode(wire.EdgeMsg(
-                MsgType.PUSH_ACK, self.nid, msg.seq, e[0], e[1])), key)
+        if self._yields_to_inbound(e, n) or (not busy and self._stale_version(msg, e)):
+            # G7: a PUSH sent before a completed transfer of e is refused too
+            self._reply(n.nid, self._edge_payload(MsgType.PUSH_NACK, msg.seq, e), key)
+            return
+        # F14b: a copy of the request my chain serves changes nothing but by
+        # taking the edge: held already, it is acknowledged without counting an
+        # acquisition, and without room only the busy flag below is set.
+        if busy and self._explicit.get(e) is True:
+            took = True
+        else:
+            took = (not busy or self._has_room(e)) and self._accept_edge(e)
+        if took:
+            self._reply(n.nid, self._edge_payload(MsgType.PUSH_ACK, msg.seq, e), key)
             return
         if msg.ttl <= 0 or self._push_job is not None:
-            self._reply(n.nid, wire.encode(wire.EdgeMsg(
-                MsgType.PUSH_NACK, self.nid, msg.seq, e[0], e[1])), key)
+            job = self._push_job
+            if job is not None and (job.src, job.seq) == (n.nid, msg.seq):
+                job.nacked = True        # F10: the sender gives up on this one
+            self._reply(n.nid, self._edge_payload(MsgType.PUSH_NACK, msg.seq, e), key)
             return
         self._push_job = PushJob(src=n.nid, seq=msg.seq, e=e, ttl=msg.ttl)
         self._service_push_job(now, self._nbrs_active())
@@ -1618,9 +2464,9 @@ class BbcvcNode(BootstrapNode):
             job.probe_edge = e2
             self._send_edge_msg(now, n, MsgType.PUSH, e2, job.ttl - 1, tag="push_chain")
             return
-        self._finish_push_job(ok=False)
+        self._finish_push_job(now, ok=False)
 
-    def _finish_push_job(self, ok: bool) -> None:
+    def _finish_push_job(self, now: int, ok: bool) -> None:
         job = self._push_job
         if job is None:
             return
@@ -1630,11 +2476,24 @@ class BbcvcNode(BootstrapNode):
         # `_accept_edge`'s return value is IGNORED I send an ACK, the sender
         # releases the edge and I do not hold it: the edge is left UNOWNED.
         # Measured: (5,15) fell through exactly this way on a 15-node UDG.
-        took = self._accept_edge(job.e) if ok else False
+        # F14b: a copy of this request may have taken the edge while the chain
+        # ran and been acknowledged; a failed chain must not answer NACK then.
+        took = (self._accept_edge(job.e) if ok else False) or self._explicit.get(job.e) is True
         mt = MsgType.PUSH_ACK if took else MsgType.PUSH_NACK
         key = (job.src, int(MsgType.PUSH), job.seq)
-        self._reply(job.src, wire.encode(wire.EdgeMsg(
-            mt, self.nid, job.seq, job.e[0], job.e[1])), key)
+        if took and job.nacked:
+            # REPAIR F10. The sender resolved this request on my busy NACK and
+            # kept the edge, so this ACK is LATE and nobody would ask for it
+            # again: sent once and lost, it left both ends owning the edge. It
+            # is therefore a request of its own, repeated by `_retry_pending`
+            # until the sender confirms it, and while it is open I am not done.
+            payload = self._edge_payload(mt, job.seq, job.e, LATE_ASK)
+            self._reply(job.src, payload, key)
+            self._arm(now, Pending(seq=_LATE_KEY | job.seq, peer=job.src,
+                                   mtype=MsgType.PUSH_ACK, payload=payload,
+                                   e=job.e, tag="late_ack"))
+            return
+        self._reply(job.src, self._edge_payload(mt, job.seq, job.e), key)
 
     def _on_ack(self, now: int, peer: int, seq: int, ok: bool) -> None:
         p = self._pending.pop((peer, seq), None)
@@ -1711,13 +2570,20 @@ class BbcvcNode(BootstrapNode):
                 self._log("stale_handover_ack", peer=p.peer, edge=p.e)
             else:
                 self._release_edge(p.e)
+        far = self._far_job
+        if p.tag == "far" and far is not None and far.probing == p.peer:
+            far.probing = None
+            if ok:
+                self._far_finish(now, True)
+            else:
+                self._far_step(now)
         job = self._push_job
         if (job is not None and job.probing == p.peer
                 and job.probe_edge == p.e and p.mtype is MsgType.PUSH):
             job.probing = None
             job.probe_edge = None
             if ok:
-                self._finish_push_job(ok=True)
+                self._finish_push_job(now, ok=True)
             else:
                 self._service_push_job(now, self._nbrs_active())
         self._touch()
@@ -1867,6 +2733,9 @@ class BbcvcNode(BootstrapNode):
         super()._reset_to_phase0(now, reason)
         self.role = Role.OUT
         self._init_algo_state()
+        # F16b: the hand-off wait of a still owed neighbour counts from the restart
+        self._handoff = {i: now + self._handoff_wait_ms()
+                         for i, t in self._handoff.items() if now < t}
         # `_init_algo_state` zaman alanlarını None'a çeker; taban HEMEN yeniden
         # kurulur, yoksa epoch sıfırlamasından sonraki ilk tık tabansız koşar.
         self._establish_clock_baseline(now)
@@ -1912,6 +2781,95 @@ def build_nodes(net, weights: Dict[int, float], k: int,
                 params: Optional[BbcvcParams] = None) -> Dict[int, BbcvcNode]:
     """Her düğüm için bir çekirdek. Çizge VERİLMEZ: yalnız ağırlık, k ve port."""
     return {nid: BbcvcNode(weights[nid], net.port(nid), params, k) for nid in net.nodes}
+
+
+# --------------------------------------------------------------------------
+# protocol state per node, at embedded field widths (measurement)
+# --------------------------------------------------------------------------
+#: Field widths, in bytes, of the embedded layout `state_bytes` assumes: a 16.16
+#: key or weight (and the 32-bit RNG state) 4; a node id or sequence number 2; a
+#: flag, role, phase, epoch, degree, load, code or small counter 1; a MAC 6; a
+#: millisecond timestamp 4. An edge is two ids; a stored frame counts its length.
+STATE_WIDTHS = {"key": 4, "id": 2, "flag": 1, "mac": 6, "ts": 4}
+_WK, _WI, _WF, _WM, _WT = (STATE_WIDTHS[x] for x in ("key", "id", "flag", "mac", "ts"))
+_WE = 2 * _WI
+#: Scalars every node holds: identity (id, MAC, salt, weight, k), bootstrap
+#: (epoch, phase, role, load, barrier flag, deg, key, seq, RNG, five timers)
+#: and Phases 1-5 (fourteen flags and counters, the active fix key, four timers).
+STATE_FIXED_BYTES = ((_WI + _WM + _WF + _WK + _WF)
+                     + (6 * _WF + _WK + _WI + _WK + 5 * _WT)
+                     + (14 * _WF + 2 * _WI + 4 * _WT))
+#: One neighbour record without its MIS list: id, MAC, key, role, phase, load,
+#: epoch, last heard, packed link flags, RSSI average, LINK seq, last acked seq,
+#: LINK attempts, two LINK timers.
+STATE_NEIGHBOUR_BYTES = (_WI + _WM + _WK + 4 * _WF + _WT + _WF + _WF
+                         + 2 * _WI + _WF + 2 * _WT)
+_STATE_TREE_BYTES = 2 * _WI + 2 * _WF + _WI + 2 * _WK + 3 * _WT
+
+
+def state_bytes(node: BbcvcNode) -> int:
+    """Protocol state one node holds, in bytes at `STATE_WIDTHS`.
+
+    Counts the shared core (bootstrap and Phases 1-5) as the code stores it:
+    the neighbour table, the frozen view, ownership, pending requests with
+    their frames, the reply cache, the attempt and invitation sets and the
+    barrier bookkeeping; the Phase 5b tree only when it is enabled. Measurement
+    counters and log state are not protocol state and are not counted, nor is
+    the extra state an arm keeps for its own Phase 1.
+    """
+    b = STATE_FIXED_BYTES
+    b += sum(STATE_NEIGHBOUR_BYTES + _WI * len(n.mis_nbrs) for n in node.nbrs.values())
+    b += _WI * len(node._frozen_bidir or ())
+    b += _WI * len(node._adv_mis)
+    b += _WE * len(node.owned) + (_WE + _WF) * (len(node._explicit) + len(node._takes))
+    b += _WE * len(node._offered)
+    b += sum(2 * _WI + _WF + _WE + 3 * _WF + _WT + len(p.payload)
+             for p in node._pending.values())
+    b += sum(_WI + _WF + _WI + len(r) for c in node._seen.values() for r in c.values())
+    b += 2 * _WI * len(node._mark)   # F14: peer id and seq
+    job = node._push_job
+    if job is not None:
+        b += 2 * _WI + _WE + _WF + _WI * len(job.tried) + _WI + _WE + _WF
+    if node._cert_root is not None:   # F17
+        b += 2 * _WI + 2 * _WK + 2 * _WF + _WT + _WI * len(node._cert_waiting)
+    far = node._far_job
+    if far is not None:
+        b += 3 * _WI + _WI * len(far.tried)   # F11b
+    b += (_WI + _WF) * (len(node._join_sent) + len(node._join_refused)
+                        + len(node._done_beacons) + len(node._nbr_deg))
+    b += (_WI + _WF + _WE + _WF) * len(node._tried_set)
+    b += _WI * (len(node._confirmed or ()) + len(node._echo_due))   # F15
+    b += 2 * _WF * len(node._barrier_hits)
+    b += (_WI + _WF) * len(node._stale_p) + _WI * len(node._expired)   # F9
+    b += (_WI + _WT) * len(node._handoff)   # F16b
+    if node._nb_sig is not None:
+        b += (_WI + 2 * _WF) * len(node._nb_sig)
+    if node._last_fp is not None:
+        b += 3 * _WF + _WE * len(node._last_fp[3])
+    if node.p.enable_tree:
+        b += _STATE_TREE_BYTES + (2 * _WI + _WF + _WI) * len(node._tree_nbr)
+        b += (2 * _WI + 2 * _WK) * len(node._tree_reports)
+    return b
+
+
+def _tx_after_convergence(sc, window_ms: int) -> int:
+    """Transmissions in the `window_ms` after the verdict, counted on a TWIN.
+
+    The scheduler, network and nodes are deep-copied and the copy keeps
+    running; the run's own objects never advance past the verdict, so every
+    number the run reports (counters, log, anytime traces of the observers)
+    stays the verdict's. The log and its observers are detached for the copy.
+    """
+    net = sc.net
+    kept = net.log_records, net._log_observers
+    net.log_records, net._log_observers = [], []
+    try:
+        twin = copy.deepcopy(sc)
+    finally:
+        net.log_records, net._log_observers = kept
+    before = sum(c.tx for c in twin.net.counters.values())
+    twin.watch(window_ms)
+    return sum(c.tx for c in twin.net.counters.values()) - before
 
 
 @dataclass
@@ -1973,13 +2931,35 @@ class BbcvcRun:
     #: ihlal edildiği anlamına gelir ve koşum raporlanamaz.
     double_claimed: Dict[Edge, Tuple[int, ...]] = field(default_factory=dict)
     tree_root: Optional[int] = None
+    #: R1 run-level counters (measurement only, no effect on the run).
+    #: Largest 0-based Phase-1a decision round over the nodes; None for arms
+    #: without the Phase-1a MIS rule. The run took mis_depth + 1 rounds.
+    mis_depth: Optional[int] = None
+    #: Epoch restarts: the largest unwrapped epoch advance over the nodes.
+    restarts: int = 0
+    #: Frames sent in a window after the verdict (`run_bbcvc(watch_ms=...)`),
+    #: measured on a twin; None when the run did not converge or no window ran.
+    tx_after_convergence: Optional[int] = None
+    #: `state_bytes` over the nodes at run end.
+    state_bytes_max: int = 0
+    state_bytes_mean: float = 0.0
+    #: The final frozen discovered graph: {u,v} with each endpoint holding the
+    #: other in its frozen view (Amendment 4). A node that has not frozen in
+    #: the final epoch contributes no edge.
+    discovered_edges: Tuple[Edge, ...] = ()
+    #: F12b: the verdict of the in-network certificate (spanning-tree arm), or
+    #: None when no node computed one; whether every node then held the flag
+    #: is read from the nodes.
+    infeasible_in_network: Optional[bool] = None
 
 
 def run_bbcvc(edges: Sequence[Edge], weights: Dict[int, float], k: int, *,
               scheduler: str = "sync", params: Optional[BbcvcParams] = None,
-              max_ms: int = 200_000, loss: float = 0.0, seed: int = 0,
+              max_ms: int = 200_000, loss: float | str = 0.0, seed: int = 0,
               delay=None, tau_ms: int = 200, tick_ms: int = 200,
-              rssi_range=None, node_factory=None, result_cls=None) -> "BbcvcRun":
+              rssi_range=None, node_factory=None, result_cls=None,
+              link_loss=None, drop=None,
+              watch_ms: Optional[int] = None) -> "BbcvcRun":
     """BB-CVC'yi bir zamanlayıcıyla koştur. Düğüm kodu kipi GÖREMEZ.
 
     VARYANT KANCALARI (DFS-Spanning-Backbone, GHS-MST-Backbone, WuLi-Dominating, Anneal-Local için).
@@ -2003,15 +2983,23 @@ def run_bbcvc(edges: Sequence[Edge], weights: Dict[int, float], k: int, *,
     sayma sınırı, sonuç derlemesi — BÜTÜN varyantlarda AYNI koddur. Kopyalanan
     bir sonuç çıkarımı, kopyalanan bir Faz 3-4 gibi kayar; karşılaştırma sessizce
     karşılaştırma olmaktan çıkar (brief §6).
+
+    `drop` is SimNet's deterministic fault predicate (tests). `watch_ms` is the
+    window after the verdict in which `tx_after_convergence` is counted, on a
+    twin of the run; None means five stale windows, 0 means no window.
     """
     from ccvc.bb import sched as _sched
     from ccvc.bb import simnet as _simnet
 
     p = params or BbcvcParams()
     nodes_ids = sorted({a for e in edges for a in e} | set(weights))
-    net = _simnet.SimNet(nodes_ids, edges, loss=loss, seed=seed,
+    if getattr(p, "n_bound", 0) is None:
+        p = copy.copy(p)
+        p.n_bound = len(nodes_ids)   # F11: the bound every node is given
+    # `loss` is a probability or a simnet loss label ('ge:<r>:<b>', 'emp')
+    net = _simnet.SimNet(nodes_ids, edges, loss=loss, link_loss=link_loss, seed=seed,
                          delay=delay or _simnet.fixed_delay(1),
-                         rssi_range=rssi_range, macs=macs_for(nodes_ids))
+                         rssi_range=rssi_range, macs=macs_for(nodes_ids), drop=drop)
     nodes = (node_factory or build_nodes)(net, weights, k, p)
     if scheduler == "sync":
         sc = _sched.SyncScheduler(net, nodes, tau_ms=tau_ms, weights=weights)
@@ -2073,6 +3061,17 @@ def run_bbcvc(edges: Sequence[Edge], weights: Dict[int, float], k: int, *,
     verdict = ("truncated" if not out.converged
                else "unresolved" if unresolved else "solved")
     tot = out.totals()
+    window = 5 * p.t_stale_ms if watch_ms is None else int(watch_ms)
+    tx_after = (_tx_after_convergence(sc, window)
+                if out.converged and window > 0 else None)
+    state = [state_bytes(n) for n in nodes.values()]
+    label = {n.nid: lab for lab, n in nodes.items()}
+    frozen = {lab: {label.get(i, i) for i in (n._frozen_bidir or ())}
+              for lab, n in nodes.items()}
+    discovered = tuple(sorted({edge(u, v) for u, fs in frozen.items() for v in fs
+                               if u in frozen.get(v, ())}))
+    rounds = [r for r in (getattr(n, "mis_round", None) for n in nodes.values())
+              if r is not None]
     return (result_cls or BbcvcRun)(
         outcome=out, nodes=nodes, net=net, cover=cover, owner=owner,
         total_weight=round(sum(weights[v] for v in cover), 6),
@@ -2090,4 +3089,13 @@ def run_bbcvc(edges: Sequence[Edge], weights: Dict[int, float], k: int, *,
         by_phase_tx=dict(tot.by_phase_tx), by_type_tx=dict(tot.by_type_tx),
         tree_root=next((n.tree_root for n in nodes.values()
                         if n.tree_parent is None and n.role.in_backbone), None),
+        mis_depth=max(rounds) if rounds else None,
+        restarts=max((n.epoch_advance for n in nodes.values()), default=0),
+        tx_after_convergence=tx_after,
+        state_bytes_max=max(state, default=0),
+        state_bytes_mean=sum(state) / len(state) if state else 0.0,
+        discovered_edges=discovered,
+        infeasible_in_network=(lambda c: any(c) if c else None)(
+            [n.cert_decided for n in nodes.values()
+             if getattr(n, "cert_decided", None) is not None]),
     )

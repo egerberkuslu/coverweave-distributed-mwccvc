@@ -115,7 +115,7 @@ def _relative(weight, good, total):
     return out
 
 
-def _spread(points, tol=0.045, step=0.155, cap=0.28):
+def _spread(points, tol=0.045, step=0.155, cap=0.46):
     """Separate ties INSIDE a column, where horizontal room means nothing.
 
     Two arms whose mean weights differ in the third decimal print one on top of
@@ -174,10 +174,17 @@ def _draw_panel(ax, title, rows, style, fams, *, ylabel, letter=None,
         ax.axvspan(col[100.0] - 0.5, col[100.0] + 0.5,
                    color=OKABE_ITO["green"], alpha=0.07, lw=0, zorder=0)
     halo = [pe.withStroke(linewidth=2.4, foreground="white")]
+    # A CROWDED COLUMN SHRINKS ITS MARKS. Twenty arms tied at one weight on
+    # the extra-large panel filled the whole column at the full size and the
+    # shapes ran into one smear, so a column holding more than ten arms draws
+    # them smaller; the value on each axis is untouched.
+    crowd = max((sum(1 for (cx, _) in drawn.values() if abs(cx - c) < 0.5)
+                 for c in range(len(vals))), default=0)
+    size = 30 if crowd > 10 else 48
     for a, (x, y) in sorted(drawn.items()):
         variant, sched = a.rsplit("/", 1)
         colour, marker = style[variant]
-        ax.scatter(x, y, s=48, marker=marker, zorder=3,
+        ax.scatter(x, y, s=size, marker=marker, zorder=3,
                    facecolor=colour if sched == "sync" else "white",
                    edgecolor=colour, linewidth=1.3, path_effects=halo)
 

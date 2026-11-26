@@ -130,6 +130,8 @@ class V4MstDistNode(BbcvcNode):
         self.ghs_parent: Optional[int] = None  # neighbour towards the core
         self.ghs_edge: Dict[int, int] = {}     # nid -> BASIC | BRANCH | REJECTED
         self.ghs_best_wt = INF_W
+        self.ghs_best_key = (INF_W, 0, 0)  # F18: a REPORT can reach a node never initiated
+        self._ghs_round_ms = 0          # F18: when my current round began
         self.ghs_best_nid: Optional[int] = None
         self.ghs_test_nid: Optional[int] = None
         self.ghs_test_done = False     # my minimum outgoing edge is settled
@@ -139,6 +141,13 @@ class V4MstDistNode(BbcvcNode):
         self._ghs_deferred_set: Set[Tuple] = set()
         self.ghs_root_acted = False
         self.ghs_reported: Set[int] = set()     # children whose REPORT arrived
+        #: F12b: child -> its subtree's certificate sums in this round, and the
+        #: last sums each peer's REPORT carried, with that REPORT's level.
+        self._ghs_child_cert: Dict[int, Tuple[int, int, int]] = {}
+        self._ghs_peer_cert: Dict[int, Tuple[int, Tuple[int, int, int]]] = {}
+        #: G6 (Amendment 13): child -> (level, fragment, state) of the INITIATE
+        #: I sent it, so that a repeat carries the round's content.
+        self._ghs_init_sent: Dict[int, Tuple[int, int, int]] = {}
         self.ghs_retry_ms = 0                   # when to re-ask an unanswered question
         self._ghs_last_asked = None             # the question outstanding last time
         self._ghs_retries = 0                   # re-asks spent on that question
@@ -298,6 +307,12 @@ class V4MstDistNode(BbcvcNode):
         """
         if self.key_fp is None or self.deg is None:
             return False
+        if self._view_stale():
+            # G1 (Amendment 13, third note): waking orders ALL my edges, so a
+            # handler waits while a frozen neighbour is missing; woken by a
+            # CONNECT on a partial view, node 4 chose a wrong lightest edge and
+            # five level-0 CONNECTs waited on each other (n5g5 k1 async).
+            return False
         return all(self._peer_w(n) < INF_W for n in edges)
 
     def _ghs_wakeup(self, now: int, edges) -> None:
@@ -306,15 +321,32 @@ class V4MstDistNode(BbcvcNode):
         self.ghs_level = 0
         self.ghs_state = FOUND
         self.ghs_reported.clear()
+        self._ghs_child_cert.clear()
         self.ghs_connects += 1
         self.ghs_connect_out.add(best.nid)
         self._ghs_send(best, MsgType.GHS_CONNECT, 0, 0, 0)
 
     def _ghs_send(self, n: BootNeighbor, mt: MsgType, level: int, frag: int,
                   wfp: int) -> None:
+        if mt is MsgType.GHS_INITIATE:
+            self._ghs_init_sent[n.nid] = (level, int(frag), wfp)   # G6
         seq = self._next_seq()
+        cert = self._ghs_subtree_cert() if mt is MsgType.GHS_REPORT else None
         self._ucast(n, wire.encode(wire.Ghs(mt, self.nid, seq, level,
-                                            int(frag), int(wfp))))
+                                            int(frag), int(wfp), cert)))
+
+    def _ghs_subtree_cert(self) -> Tuple[int, int, int]:
+        """F12b: (sum of min(deg, k), sum of deg, nodes) over my subtree.
+
+        Every REPORT of a round carries it, so the core's two halves add up to
+        the whole fragment; in the last round that is the whole component of
+        the discovered graph. The degrees are the frozen ones.
+        """
+        d = self.deg or 0
+        cap, degs, cnt = min(d, self.k), d, 1
+        for c, dd, nn in self._ghs_child_cert.values():
+            cap, degs, cnt = cap + c, degs + dd, cnt + nn
+        return cap, degs, cnt
 
     def _ghs_defer(self, mt, nid, level, frag, wfp) -> None:
         """Queue a question I cannot answer yet, but never twice over.
@@ -336,6 +368,8 @@ class V4MstDistNode(BbcvcNode):
         cover at ZERO loss, where it solves in 37 slots. Only an EXACT duplicate
         may be dropped.
         """
+        if self.phase > PH_MIS:
+            return   # G6 (Amendment 13): the tree has halted; the question is moot
         item = (mt, nid, level, frag, wfp)
         if item in self._ghs_deferred_set:
             return
@@ -376,6 +410,12 @@ class V4MstDistNode(BbcvcNode):
         self.ghs_connect_out.discard(n.nid)   # the peer answered my CONNECT
         if level < self.ghs_level:
             # Absorb: the smaller fragment joins mine and adopts my identity.
+            if self.ghs_edge.get(n.nid) == BRANCH:
+                # G6: a repeated CONNECT on an edge I already answered in this
+                # round (my merge partner, which never got my INITIATE) gets
+                # the INITIATE as first sent, not one rebuilt from my state.
+                self._ghs_repeat_initiate(n)
+                return
             self.ghs_edge[n.nid] = BRANCH
             self._ghs_send(n, MsgType.GHS_INITIATE, self.ghs_level,
                            self.ghs_frag, 0 if self.ghs_state == FOUND else 1)
@@ -407,9 +447,9 @@ class V4MstDistNode(BbcvcNode):
             if self.ghs_frag == fid and self.ghs_edge.get(n.nid) == BRANCH:
                 # ALREADY MERGED ON THIS VERY EDGE. A re-sent CONNECT (the
                 # sender never got my INITIATE) must not raise the level a
-                # second time; it only needs the answer repeated.
-                self._ghs_send(n, MsgType.GHS_INITIATE, self.ghs_level,
-                               self.ghs_frag, 0 if self.ghs_state == FOUND else 1)
+                # second time; it only needs the answer repeated (G6: the
+                # answer as first sent, not rebuilt from my current state).
+                self._ghs_repeat_initiate(n)
                 return
             self.ghs_merges += 1
             self._ghs_send(n, MsgType.GHS_INITIATE, self.ghs_level + 1, fid, 1)
@@ -423,6 +463,7 @@ class V4MstDistNode(BbcvcNode):
         self.ghs_frag = frag
         self.ghs_state = state
         self.ghs_parent = parent_nid
+        self._ghs_round_ms = now
         self.ghs_best_wt = INF_W
         self.ghs_best_key = (INF_W, 0, 0)
         self.ghs_best_nid = None
@@ -430,6 +471,7 @@ class V4MstDistNode(BbcvcNode):
         self.ghs_test_done = False       # a new fragment reopens the search
         self.ghs_root_acted = False      # and reopens the right to act once
         self.ghs_reported.clear()
+        self._ghs_child_cert.clear()
         for n in edges:
             if n.nid != parent_nid and self.ghs_edge.get(n.nid) == BRANCH:
                 self._ghs_send(n, MsgType.GHS_INITIATE, level, frag,
@@ -719,6 +761,14 @@ class V4MstDistNode(BbcvcNode):
                 self._ghs_send(p, MsgType.GHS_REPORT, self.ghs_level,
                                self._pack_tie(self.ghs_best_key),
                                self.ghs_best_wt)
+        # F18: CHANGE_ROOT was sent once; a lost copy left the fragment without
+        # its merge. Repeated until the next round, its receiver acts once.
+        b = self.ghs_best_nid
+        if (self.ghs_root_acted and b is not None and b not in self.ghs_connect_out
+                and self.ghs_edge.get(b) == BRANCH):
+            t = self.nbrs.get(b)
+            if t is not None and t.is_edge:
+                self._ghs_send(t, MsgType.GHS_CHANGE_ROOT, self.ghs_level, 0, 0)
 
     def _ghs_on_report(self, now: int, n: BootNeighbor, wfp: int, edges,
                        tie: int = 0, level: Optional[int] = None) -> None:
@@ -736,8 +786,18 @@ class V4MstDistNode(BbcvcNode):
         # outgoing edge for ever, the core halt test never fired, and the run
         # returned an EMPTY cover although the spanning tree was complete.
         if level is not None and level < self.ghs_level:
+            self._ghs_reinitiate(now, n)     # F18: or it missed my INITIATE
+            return
+        if level is not None and level > self.ghs_level:
+            # F18: a round I have not entered, because its INITIATE was lost.
+            # Counted as a child's it raised AttributeError on a node never
+            # initiated (smoke H2a n25_m100_s1, async, 20 percent, seed 1).
+            self._ghs_defer(MsgType.GHS_REPORT, n.nid, level, tie, wfp)
             return
         key = self._unpack_tie(wfp, tie)
+        got = self._ghs_peer_cert.get(n.nid)
+        if n.nid != self.ghs_parent and got is not None and got[0] == level:
+            self._ghs_child_cert[n.nid] = got[1]   # F12b
         if n.nid != self.ghs_parent:
             # A SET, NOT A COUNTER. A REPORT is re-sent when the first one is
             # lost (see `_ghs_reassert`), so counting arrivals would let one
@@ -772,7 +832,7 @@ class V4MstDistNode(BbcvcNode):
         if key > self.ghs_best_key:
             self._ghs_change_root(now, edges)
         elif wfp >= INF_W and self.ghs_best_wt >= INF_W:
-            self._ghs_halt(now)
+            self._ghs_halt(now, partner=n.nid)
 
     def _ghs_root_decide(self, now: int, edges) -> None:
         """The core node: extend the fragment, or declare the tree finished."""
@@ -810,21 +870,75 @@ class V4MstDistNode(BbcvcNode):
             return
         self.ghs_root_acted = True
         if self.ghs_edge.get(t.nid) == BRANCH:
-            self._ghs_send(t, MsgType.GHS_CHANGE_ROOT, 0, 0, 0)
+            self._ghs_send(t, MsgType.GHS_CHANGE_ROOT, self.ghs_level, 0, 0)
         else:
             self.ghs_edge[t.nid] = BRANCH
             self.ghs_connects += 1
             self.ghs_connect_out.add(t.nid)
             self._ghs_send(t, MsgType.GHS_CONNECT, self.ghs_level, 0, 0)
 
-    def _ghs_on_change_root(self, now: int, n: BootNeighbor, edges) -> None:
+    def _ghs_on_change_root(self, now: int, n: BootNeighbor, edges,
+                            level: int) -> None:
+        if level != self.ghs_level:
+            if level < self.ghs_level:
+                self._ghs_reinitiate(now, n)   # F18: it missed my INITIATE
+            return
         self._ghs_change_root(now, edges)
 
+    def _ghs_reinitiate(self, now: int, n: BootNeighbor) -> None:
+        """F18: repeat my INITIATE to a child that is still in an older round.
+
+        `_ghs_initiate` sends INITIATE once per child and nothing repeats it, so
+        one lost copy leaves the child a level behind for ever: it defers every
+        TEST of the new level and its old-level REPORT is discarded. Its
+        repeated REPORT, or repeated CHANGE_ROOT on the path that turned the
+        tree round, is the evidence. A copy that only crossed my INITIATE
+        arrives within one tick, so a round younger than one re-ask interval is
+        not repeated and lossless runs never repeat it.
+        """
+        if (n.nid != self.ghs_parent and self.ghs_edge.get(n.nid) == BRANCH
+                and n.nid not in self.ghs_connect_out
+                and now - self._ghs_round_ms >= self.p.link_backoff_ms):
+            self._ghs_repeat_initiate(n)   # G6
+
+    def _ghs_repeat_initiate(self, n: BootNeighbor) -> None:
+        """G6 (Amendment 13): a repeated INITIATE carries the round's content.
+
+        It repeats the level, fragment and state of the INITIATE first sent to
+        this neighbour in my current round, not my current state. Rebuilt from
+        my state, a repeat sent after my own search had ended said FOUND, so
+        the neighbour entered the round without searching and its core halted
+        on an incomplete tree (n4g1 k = 2, burst of 5 on 4->1: node 2 ended
+        phase 1 as OUT and the cover was disconnected)."""
+        sent = self._ghs_init_sent.get(n.nid)
+        if sent is not None and sent[0] == self.ghs_level:
+            self._ghs_send(n, MsgType.GHS_INITIATE, sent[0], sent[1], sent[2])
+        else:
+            self._ghs_send(n, MsgType.GHS_INITIATE, self.ghs_level,
+                           self.ghs_frag, 0 if self.ghs_state == FOUND else 1)
+
     # ---------------------------------------------------------- termination
-    def _ghs_halt(self, now: int) -> None:
+    def _ghs_halt(self, now: int, partner: Optional[int] = None) -> None:
         if self.ghs_halted:
             return
         self.ghs_halted = True
+        # REPAIR F12b. The tree is complete: my subtree plus my core partner's
+        # is the whole component. degs = 2m; the counting bound (m > nk) and
+        # the degree-gap witness (sum of min(deg, k) < m) are decided here and
+        # a positive verdict reaches every node through HELLO's flag.
+        cap, degs, cnt = self._ghs_subtree_cert()
+        got = self._ghs_peer_cert.get(partner) if partner is not None else None
+        if got is not None:
+            cap, degs, cnt = cap + got[1][0], degs + got[1][1], cnt + got[1][2]
+        bad = degs > 2 * cnt * self.k or 2 * cap < degs
+        self._log("ghs_certificate", cap_sum=cap, deg_sum=degs, nodes=cnt,
+                  infeasible=bad)
+        if bad and self._cert_root is None:
+            # G5 (Amendment 13): the tree sums are not checked for completeness
+            # (a halt on a fragment that missed its children summed 2 of 5
+            # nodes of a feasible star), so they only start the echo wave,
+            # whose completion is the certificate.
+            self._cert_start(now)
         self._log("ghs_halt", level=self.ghs_level, merges=self.ghs_merges,
                   rejects=self.ghs_rejects, connects=self.ghs_connects)
         self._v4_flood_done(now)
@@ -837,7 +951,9 @@ class V4MstDistNode(BbcvcNode):
 
     def _v4_phase1_over(self, edges) -> bool:
         """Has a neighbour already left Phase 1? Then it is over for me too."""
-        return any(n.phase > PH_MIS for n in edges)
+        # F18: only a record of my epoch; an older one said phase 3 of a
+        # finished epoch and skipped the tree (H2a n25_m100_s1, ge:0.20:4).
+        return any(n.phase > PH_MIS and self._in_epoch(n) for n in edges)
 
     def _on_v4_done(self, now: int, n: BootNeighbor, msg) -> None:
         if self._v4_done_seen:
@@ -852,6 +968,10 @@ class V4MstDistNode(BbcvcNode):
         return sum(1 for s in self.ghs_edge.values() if s == BRANCH) >= 2
 
     def _v4_enter_mis(self, now: int) -> None:
+        # G6 (Amendment 13): GHS questions deferred in phase 1 are moot once
+        # the component's tree has halted, which this flood announces.
+        self.ghs_deferred = []
+        self._ghs_deferred_set = set()
         if self.phase != PH_MIS:
             return
         self.phase = PH_CONN
@@ -870,16 +990,37 @@ class V4MstDistNode(BbcvcNode):
         elif msg.code == 2:
             self._v4_bb_decided[n.nid] = False
 
+    def _v4_decided(self, n: BootNeighbor):
+        """A backbone neighbour's MIS decision: True, False, or None (not yet).
+
+        REPAIR F8 (R1, Amendment 4). The decision travels in ONE BB_MIS
+        broadcast, and that frame can be lost. MEASURED on the worked example,
+        asynchronous, ten per cent loss, channel seed 2: node 4 waited for the
+        whole 600 s budget on node 6, whose decision frame it never received,
+        while every HELLO of node 6 already said phase 3, role MIS. Nothing was
+        pending anywhere. The answer is on the air, as in `_v4_phase1_over`: a
+        backbone node leaves PH_CONN only after deciding, and its role then
+        says which way (MIS, or CONNECTOR/COVER for "not MIS").
+        """
+        d = self._v4_bb_decided.get(n.nid)
+        if d is None and n.phase >= PH_COVER:
+            d = n.role == Role.MIS
+        return d
+
     def _v4_mis_step(self, now: int, edges) -> None:
         if not self._v4_in_backbone or self._v4_mis_claim is not None:
             self._v4_finish_roles(now)
             return
         mk = self._mykey()
+        # F8: a neighbour whose HELLO says MIS is a decided backbone member even
+        # if its BB_MIS announcement was lost.
         smaller = [n for n in edges
-                   if n.nid in self._v4_bb_members and self._nkey(n) < mk]
-        if any(self._v4_bb_decided.get(n.nid) is None for n in smaller):
+                   if (n.nid in self._v4_bb_members
+                       or (n.phase >= PH_COVER and n.role == Role.MIS))
+                   and self._nkey(n) < mk]
+        if any(self._v4_decided(n) is None for n in smaller):
             return
-        self._v4_mis_claim = not any(self._v4_bb_decided.get(n.nid) for n in smaller)
+        self._v4_mis_claim = not any(self._v4_decided(n) for n in smaller)
         self._v4_announce(now, 1 if self._v4_mis_claim else 2)
         self._v4_finish_roles(now)
 
@@ -976,6 +1117,9 @@ class V4MstDistNode(BbcvcNode):
         self.ghs_test_done = False
         self.ghs_connect_out = set()
         self.ghs_reported = set()
+        self._ghs_child_cert = {}
+        self._ghs_peer_cert = {}
+        self._ghs_init_sent = {}
         self.ghs_retry_ms = 0
         self._ghs_last_asked = None
         self._ghs_retries = 0
@@ -995,12 +1139,22 @@ class V4MstDistNode(BbcvcNode):
     #: one of these does not slow the run down, it stops it.
     _GHS_BLOCKING = (MsgType.GHS_CONNECT, MsgType.GHS_TEST, MsgType.GHS_REPORT,
                      MsgType.GHS_INITIATE)
+    #: F18: this arm's own frames carry no epoch byte (F3 covers JOIN and the
+    #: edge types only), so the sender's epoch is the one its HELLO announced.
+    _V4_TYPES = _GHS_BLOCKING + (MsgType.GHS_ACCEPT, MsgType.GHS_REJECT,
+                                 MsgType.GHS_CHANGE_ROOT, MsgType.DFS_DONE,
+                                 MsgType.BB_MIS)
 
     def _on_algo(self, now: int, src_mac: int, msg) -> None:
         peer = msg.src
         n = self.nbrs.get(peer)
         if n is None or n.mac != src_mac:
             return                      # unknown peer or wrong MAC: not mine
+        if msg.mtype in self._V4_TYPES and not self._in_epoch(n):
+            # F18: a frame of an older epoch. Processed after my restart it set
+            # a SLEEPING node's parent across a BASIC edge (n100_m400_s2, sync,
+            # 5 percent). Every type here is repeated or read from HELLO.
+            return
         if not n.is_edge:
             # DEFER, NEVER DROP -- the same rule `_ghs_on_test` already states
             # for a sleeping node, applied one layer out. A known neighbour
@@ -1047,9 +1201,11 @@ class V4MstDistNode(BbcvcNode):
             # REPORT reuses the otherwise unused `frag` field to carry the two
             # id components of the edge key, so the core comparison is a strict
             # total order rather than a weight that ties.
+            if msg.cert is not None:
+                self._ghs_peer_cert[n.nid] = (msg.level, tuple(msg.cert))   # F12b
             self._ghs_on_report(now, n, msg.wfp, edges, msg.frag, msg.level)
         elif mt is MsgType.GHS_CHANGE_ROOT:
-            self._ghs_on_change_root(now, n, edges)
+            self._ghs_on_change_root(now, n, edges, msg.level)
         elif mt is MsgType.DFS_DONE:
             self._on_v4_done(now, n, msg)
         elif mt is MsgType.BB_MIS:
@@ -1083,10 +1239,12 @@ def run_v4(edges, weights, k: int, *, scheduler: str = "sync", params=None,
 
 
 def _spec_run(req) -> Any:
+    from ccvc.bb.sweep import with_overrides
+
     p = BbcvcParams()
     p.mis_nbrs_max = req.mis_nbrs_max
     return run_v4(list(req.edges), dict(req.weights), req.k,
-                  scheduler=req.scheduler, params=p,
+                  scheduler=req.scheduler, params=with_overrides(p, req),
                   max_ms=req.max_ms, seed=req.seed, loss=req.loss)
 
 

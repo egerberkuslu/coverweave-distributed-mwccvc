@@ -47,6 +47,7 @@ from ccvc.bb import validate as V  # noqa: E402
 from ccvc.bb.anneal import AnnealNode, AnnealParams  # noqa: E402
 from ccvc.bb.bbcvc import BbcvcRun, run_bbcvc  # noqa: E402
 from ccvc.bb.sweep import AnytimeSample, AnytimeTrace, RunRequest, VariantSpec  # noqa: E402
+from ccvc.bb.sweep import with_overrides  # noqa: E402
 
 Edge = Tuple[int, int]
 
@@ -280,7 +281,8 @@ def _spec_run(tree: bool, trickle: bool):
                          mis_nbrs_max=req.mis_nbrs_max)
         return run_anneal(list(req.edges), dict(req.weights), req.k,
                           scheduler=req.scheduler, max_ms=req.max_ms,
-                          loss=req.loss, seed=req.seed, params=p)
+                          loss=req.loss, seed=req.seed,
+                          params=with_overrides(p, req))
     return run
 
 

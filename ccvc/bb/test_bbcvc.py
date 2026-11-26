@@ -359,10 +359,16 @@ def test_node_never_claims_infeasibility_it_cannot_prove():
     edges, weights, _ = figures.udg_instance(100, 0.15, 4)
     g = validate.make_graph(edges, 4, weights)
     assert bridge.capacity_feasible(g, set(weights))[0], "örnek gerçekten uygun"
-    r = run("sync", edges, weights, 4, max_ms=300_000)
+    # R1 repair F11: before giving up, every overloaded node now deepens its
+    # push to n (6, 12, ..., 100), so the old 300 000 ms budget truncated it.
+    # R1 repair F11b: the deepest push failing, the invitation is relayed
+    # through the cover and the missing node joins. The run that used to end
+    # `unresolved` (|C| = 89) now ends solved and valid (|C| = 90). The point
+    # of this test, never a false infeasibility claim, is unchanged.
+    r = run("sync", edges, weights, 4, max_ms=2_000_000)
     assert not r.infeasible, "YANLIŞ UYGUNSUZLUK: örnek uygun, düğüm uygunsuz dedi"
-    assert r.unresolved, "çözemediğini bildirmeli"
     assert r.converged, "ve yine de sonlanmalı"
+    assert r.verdict == "solved" and validate.validate(g, r.cover, r.owner).valid
 
 
 @pytest.mark.parametrize("scheduler", ["sync", "async"])
@@ -596,14 +602,15 @@ def test_measured_payload_is_bounded(scheduler):
         edges, weights = _udg(n, radius, seed=5)
         r = run(scheduler, edges, weights, k)
         caps.append(r.max_payload)
-        assert r.max_payload <= wire.hello_size(cap)
+        # R1 F15: a HELLO may echo at most ECHO_MAX neighbours, a fixed bound
+        assert r.max_payload <= wire.hello_size(cap, echo=wire.ECHO_MAX)
     assert max(caps) < 250
 
 
 def test_node_never_transmits_a_full_neighbour_list():
-    """Her yayın ya HELLO'dur (<= 23 B) ya da sabit boyutlu bir unicast'tir."""
+    """Her yayın ya HELLO'dur (<= 32 B) ya da sabit boyutlu bir unicast'tir."""
     r = run("sync")
-    assert r.max_payload <= wire.hello_size(BbcvcParams().mis_nbrs_max)
+    assert r.max_payload <= wire.hello_size(BbcvcParams().mis_nbrs_max, echo=wire.ECHO_MAX)
     for mt in r.by_type_tx:
         assert MsgType(mt) in (MsgType.HELLO, MsgType.LINK, MsgType.LINK_ACK,
                                MsgType.JOIN, MsgType.JOIN_ACK,
@@ -747,7 +754,16 @@ def test_document_counter_comparison_sync():
     # though every node has finished. Price on this example: four HELLOs, tx 507
     # to 510 and rx 1367 to 1373, with SLOTS UNCHANGED at 53 and the emulator
     # still matching the simulator exactly.
-    assert (r.slots, r.tx, r.rx) == (53, 510, 1373)
+    # R1 REPAIRS (F1-F5, test_r1_repairs.py): 53 -> 54 slots, 510 -> 522 tx,
+    # 1373 -> 1397 rx. F2 answers an open-barrier beacon once per stale window
+    # instead of once per epoch, so nodes 1 and 10 answer 2, 3, 8 and 9 again
+    # while those wait on node 4 (twelve liveness HELLOs); the last one is in
+    # flight at slot 53. Event HELLOs, LINK and algorithm unicasts unchanged.
+    # Amendment 13: every DONE node asks its frozen neighbours to confirm it
+    # (G2c), and a node is done only when closed (G4). On the worked example
+    # that is 6 HELLOs (closed nodes echoing) and 20 rx more, slots unchanged; the
+    # cover, weight and every algorithm unicast are unchanged.
+    assert (r.slots, r.tx, r.rx) == (54, 528, 1417)
     # Belgenin sayıları, karşılaştırma için:
     assert (20, 214, 614) != (r.slots, r.tx, r.rx)
     assert r.tx / 214 < 2.5 and r.rx / 614 < 2.5
@@ -780,7 +796,12 @@ def test_document_counter_comparison_async():
     # though every node has finished. Price on this example: four HELLOs, tx 507
     # to 510 and rx 1367 to 1373, with SLOTS UNCHANGED at 53 and the emulator
     # still matching the simulator exactly.
-    assert (r.tx, r.rx) == (379, 962)
+    # R1 REPAIRS: 379 -> 381 tx and 962 -> 966 rx, two repeated F2 answers.
+    # Amendment 13: every DONE node asks its frozen neighbours to confirm it
+    # (G2c), and a node is done only when closed (G4). On the worked example
+    # that is 6 HELLOs (closed nodes echoing) and 20 rx more, slots unchanged; the
+    # cover, weight and every algorithm unicast are unchanged.
+    assert (r.tx, r.rx) == (388, 988)
     assert r.hello_periodic_tx + r.hello_change_tx <= r.tx
     # Belgenin dışladığı canlılık payı ayrı sayılır: bir HELLO ancak DURUM
     # DEĞİŞİKLİĞİ taşıyorsa "olay HELLO'su"dur.
@@ -790,7 +811,7 @@ def test_document_counter_comparison_async():
     # change. The repair was first written through `_hello_dirty`, which pushed
     # the event share to 113 and made the split claim a state change that never
     # happened; sending it as the liveness beacon it actually is restores 109.
-    assert (r.hello_change_tx, r.hello_periodic_tx) == (109, 176)
+    assert (r.hello_change_tx, r.hello_periodic_tx) == (109, 185)   # R1: +2 F2 answers; Amendment 13: +6 echoes
     link = (r.by_type_tx.get(int(MsgType.LINK), 0)
             + r.by_type_tx.get(int(MsgType.LINK_ACK), 0))
     doc_like = r.hello_change_tx + (r.tx - link - r.hello_change_tx
@@ -988,7 +1009,8 @@ def test_property_random_udg(n, radius, seed, k, scheduler):
     assert validate.check_g2(g, b) == []
     assert len(validate.cover_components(g, b)) == 1
     # G8: birim diskte MIS komşusu sayısı <= 5, yani HELLO sabit boyutludur
-    assert r.max_payload <= wire.hello_size(BbcvcParams().mis_nbrs_max)
+    # R1 F15: plus at most ECHO_MAX echo entries
+    assert r.max_payload <= wire.hello_size(BbcvcParams().mis_nbrs_max, echo=wire.ECHO_MAX)
 
 
 @pytest.mark.parametrize("n,radius,seed", UDG_CASES[:4])
@@ -1239,7 +1261,9 @@ def test_mis_nbrs_cap_is_a_parameter_not_the_literal_five():
             max_ms=400_000)
     assert r.converged
     assert r.nodes[1].mis_nbrs() == (2, 3, 4, 5, 6, 7)
-    assert r.max_payload == wire.hello_size(6) == 25
+    # Amendment 13, G2(c): a HELLO can carry the confirmation echo (F15's bound)
+    assert wire.hello_size(6) == 25
+    assert wire.hello_size(6) <= r.max_payload <= wire.hello_size(6, echo=wire.ECHO_MAX)
     rep = validate.validate(validate.make_graph(edges, 3, weights), r.cover, r.owner)
     assert rep.valid, rep.summary()
     # HELLO artık yoğunlukla BÜYÜR; brief §5'in savı bu kipte geçerli değildir

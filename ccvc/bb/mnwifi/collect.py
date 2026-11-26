@@ -29,13 +29,21 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))))))
+sys.path.insert(
+    0,
+    os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    ),
+)
 
 from ccvc.bb.api import Counters, Role  # noqa: E402
 from ccvc.bb.bootstrap import hash16  # noqa: E402
-from ccvc.bb.mnwifi.topology import (TopologyDiff, compare_topology,  # noqa: E402
-                                     edge, parse_mac)
+from ccvc.bb.mnwifi.topology import (
+    TopologyDiff,
+    compare_topology,  # noqa: E402
+    edge,
+    parse_mac,
+)
 
 Edge = Tuple[int, int]
 
@@ -82,7 +90,9 @@ class NodeLog:
         return None
 
 
-def split_last_execution(recs: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], int]:
+def split_last_execution(
+    recs: List[Dict[str, Any]]
+) -> Tuple[List[Dict[str, Any]], int]:
     """Keep only the records of the LAST execution in FILE order.
 
     `JsonlLog` opens its file in append mode, so re-using a run directory
@@ -152,8 +162,13 @@ def read_node_log(path: str) -> NodeLog:
     nid = hash16(mac) if mac else int(os.path.basename(path).split(".")[0])
     log = NodeLog(nid=nid, mac=mac, path=path, records=recs, stale_records=stale)
     if bad:
-        log.records.append({"t_ms": recs[-1]["t_ms"] if recs else 0,
-                            "event": "collector_note", "truncated": bad})
+        log.records.append(
+            {
+                "t_ms": recs[-1]["t_ms"] if recs else 0,
+                "event": "collector_note",
+                "truncated": bad,
+            }
+        )
     return log
 
 
@@ -206,6 +221,9 @@ class RunCounters:
     #: Peers whose RSSI was condemned as unreadable. Non-zero means the gate
     #: did not govern those links; see BootstrapParams.rssi_impossible_dbm.
     rssi_implausible: int
+    #: Epoch restarts: the largest `epoch_advance` any station reported, the
+    #: simulator's `restarts`. None when no station log carries it.
+    restarts: Optional[int] = None
 
     # -- toplamlar --------------------------------------------------------
     def totals(self) -> Counters:
@@ -217,9 +235,11 @@ class RunCounters:
             agg.retx += c.retx
             agg.radio_on_ms += c.radio_on_ms
             agg.max_payload = max(agg.max_payload, c.max_payload)
-            for dst, src in ((agg.by_type_tx, c.by_type_tx),
-                             (agg.by_type_rx, c.by_type_rx),
-                             (agg.by_phase_tx, c.by_phase_tx)):
+            for dst, src in (
+                (agg.by_type_tx, c.by_type_tx),
+                (agg.by_type_rx, c.by_type_rx),
+                (agg.by_phase_tx, c.by_phase_tx),
+            ):
                 for kk, vv in src.items():
                     dst[kk] = dst.get(kk, 0) + vv
         return agg
@@ -277,14 +297,15 @@ def _role_from(value: Any) -> Role:
         return Role.OUT
 
 
-def counters_from_logs(logs: Dict[int, NodeLog], *, tau_ms: int,
-                       t0_ms: Optional[int] = None) -> RunCounters:
+def counters_from_logs(
+    logs: Dict[int, NodeLog], *, tau_ms: int, t0_ms: Optional[int] = None
+) -> RunCounters:
     """Derive every counter from the log. The single entry point."""
     by_mac: Dict[int, int] = {lg.mac: nid for nid, lg in logs.items() if lg.mac}
     by_node: Dict[int, Counters] = {nid: Counters() for nid in logs}
     rx_delivered: Dict[int, int] = {nid: 0 for nid in logs}
-    done_obs: Dict[int, int] = {}      # the scheduler's observation (node_done)
-    done_self: Dict[int, int] = {}     # the node's own claim (done)
+    done_obs: Dict[int, int] = {}  # the scheduler's observation (node_done)
+    done_self: Dict[int, int] = {}  # the node's own claim (done)
     roles: Dict[int, Role] = {}
     owned: Dict[int, List[Edge]] = {}
     deg: Dict[int, int] = {}
@@ -295,6 +316,7 @@ def counters_from_logs(logs: Dict[int, NodeLog], *, tau_ms: int,
     table_overflow = id_reder = overruns = truncated = 0
     stale = sum(lg.stale_records for lg in logs.values())
     unreachable = send_fail = rssi_fail = rssi_implausible = 0
+    advances: List[int] = []
 
     starts = [lg.first_ms for lg in logs.values() if lg.first_ms is not None]
     ends = [lg.last_ms for lg in logs.values() if lg.last_ms is not None]
@@ -319,7 +341,7 @@ def counters_from_logs(logs: Dict[int, NodeLog], *, tau_ms: int,
                 src = by_mac.get(parse_mac(str(r.get("src", "00:00:00:00:00:00"))))
                 mt = int(r.get("mtype", -1))
                 if src is not None and src in by_node:
-                    by_node[src].rx += 1          # credited to the SENDER (api)
+                    by_node[src].rx += 1  # credited to the SENDER (api)
                     by_node[src].by_type_rx[mt] = by_node[src].by_type_rx.get(mt, 0) + 1
             elif ev == "retx":
                 c.retx += int(r.get("n", 1))
@@ -352,6 +374,8 @@ def counters_from_logs(logs: Dict[int, NodeLog], *, tau_ms: int,
             id_reder += int(end.get("id_rederivations", 0))
             rssi_fail += int(end.get("rssi_failures", 0))
             rssi_implausible += int(end.get("rssi_implausible", 0))
+            if end.get("epoch_advance") is not None:
+                advances.append(int(end["epoch_advance"]))
         else:
             roles.setdefault(nid, Role.OUT)
             owned.setdefault(nid, [])
@@ -377,16 +401,34 @@ def counters_from_logs(logs: Dict[int, NodeLog], *, tau_ms: int,
         c.radio_on_ms = int(done_ms.get(nid, t_end) - t0)
 
     return RunCounters(
-        t0_ms=t0, t_end_ms=t_end, tau_ms=int(tau_ms), by_node=by_node,
-        rx_delivered=rx_delivered, done_ms=done_ms, slots=slots,
-        t_conv_ms=t_conv, converged=converged, roles=roles, owned=owned,
-        deg=deg, key_fp=key_fp, epoch=epoch, bidir=bidir,
-        infeasible=infeasible, unresolved=unresolved,
-        table_overflow=table_overflow, id_rederivations=id_reder,
-        slot_overruns=overruns, truncated_lines=truncated,
+        t0_ms=t0,
+        t_end_ms=t_end,
+        tau_ms=int(tau_ms),
+        by_node=by_node,
+        rx_delivered=rx_delivered,
+        done_ms=done_ms,
+        slots=slots,
+        t_conv_ms=t_conv,
+        converged=converged,
+        roles=roles,
+        owned=owned,
+        deg=deg,
+        key_fp=key_fp,
+        epoch=epoch,
+        bidir=bidir,
+        infeasible=infeasible,
+        unresolved=unresolved,
+        table_overflow=table_overflow,
+        id_rederivations=id_reder,
+        slot_overruns=overruns,
+        truncated_lines=truncated,
         stale_records=stale,
-        unicast_unreachable=unreachable, send_failures=send_fail,
-        rssi_failures=rssi_fail, rssi_implausible=rssi_implausible)
+        unicast_unreachable=unreachable,
+        send_failures=send_fail,
+        rssi_failures=rssi_fail,
+        rssi_implausible=rssi_implausible,
+        restarts=max(advances) if advances else None,
+    )
 
 
 # ==========================================================================
@@ -403,16 +445,25 @@ class Timeline:
     phase_bounds: Dict[int, int] = field(default_factory=dict)
 
     def as_dict(self) -> Dict[str, Any]:
-        return {"slots": self.slots, "role_changes": self.role_changes,
-                "cover_size": self.cover_size, "cover_weight": self.cover_weight,
-                "phase_bounds": {str(k): v for k, v in sorted(self.phase_bounds.items())}}
+        return {
+            "slots": self.slots,
+            "role_changes": self.role_changes,
+            "cover_size": self.cover_size,
+            "cover_weight": self.cover_weight,
+            "phase_bounds": {str(k): v for k, v in sorted(self.phase_bounds.items())},
+        }
 
 
-def timeline(logs: Dict[int, NodeLog], *, tau_ms: int, t0_ms: int,
-             weights: Optional[Dict[int, float]] = None) -> Timeline:
+def timeline(
+    logs: Dict[int, NodeLog],
+    *,
+    tau_ms: int,
+    t0_ms: int,
+    weights: Optional[Dict[int, float]] = None,
+) -> Timeline:
     w = {int(k): float(v) for k, v in (weights or {}).items()}
     changes: Dict[int, int] = defaultdict(int)
-    joined: Dict[int, int] = {}          # nid -> slot it first entered the cover
+    joined: Dict[int, int] = {}  # nid -> slot it first entered the cover
     phase_first: Dict[int, int] = {}
     last_slot = 0
     for nid, lg in logs.items():
@@ -436,10 +487,13 @@ def timeline(logs: Dict[int, NodeLog], *, tau_ms: int, t0_ms: int,
         inc = [n for n, js in joined.items() if js <= s]
         size.append(len(inc))
         weight.append(round(sum(w.get(n, 0.0) for n in inc), 6))
-    return Timeline(slots=slots,
-                    role_changes=[changes.get(s, 0) for s in slots],
-                    cover_size=size, cover_weight=weight,
-                    phase_bounds=dict(sorted(phase_first.items())))
+    return Timeline(
+        slots=slots,
+        role_changes=[changes.get(s, 0) for s in slots],
+        cover_size=size,
+        cover_weight=weight,
+        phase_bounds=dict(sorted(phase_first.items())),
+    )
 
 
 # ==========================================================================
@@ -469,7 +523,9 @@ class Discrepancy:
 
     def __str__(self) -> str:
         r = "" if self.rel is None else f" ({self.rel:+.1%})"
-        return f"{self.metric}: emulator {self.emulator} / simulator {self.simulator}{r}"
+        return (
+            f"{self.metric}: emulator {self.emulator} / simulator {self.simulator}{r}"
+        )
 
 
 @dataclass
@@ -499,8 +555,10 @@ class SimComparison:
         lines = [f"MISMATCH on {len(self.discrepancies)} metric(s)"]
         lines += [f"  - {d}" for d in self.discrepancies]
         if not self.cover_same:
-            lines.append(f"  - cover differs: emulator {self.emulator_cover} / "
-                         f"simulator {self.simulator_cover}")
+            lines.append(
+                f"  - cover differs: emulator {self.emulator_cover} / "
+                f"simulator {self.simulator_cover}"
+            )
         if not self.owner_same:
             lines.append("  - ownership assignment differs")
         return "\n".join(lines)
@@ -510,9 +568,13 @@ class SimComparison:
 STRICT_METRICS = ("slots", "tx", "rx", "bytes_tx", "max_payload", "total_weight")
 
 
-def compare_with_sim(run: RunCounters, sim_run: Any, *,
-                     weights: Optional[Dict[int, float]] = None,
-                     metrics: Sequence[str] = STRICT_METRICS) -> SimComparison:
+def compare_with_sim(
+    run: RunCounters,
+    sim_run: Any,
+    *,
+    weights: Optional[Dict[int, float]] = None,
+    metrics: Sequence[str] = STRICT_METRICS,
+) -> SimComparison:
     """Compare emulator counters against a simulator run object."""
     w = {int(k): float(v) for k, v in (weights or {}).items()}
     tot = run.totals()
@@ -542,18 +604,26 @@ def compare_with_sim(run: RunCounters, sim_run: Any, *,
             diffs.append(Discrepancy(m, emu.get(m), sim.get(m)))
     sim_cover = sorted(getattr(sim_run, "cover", []) or [])
     sim_owner = {edge(*e): v for e, v in (getattr(sim_run, "owner", {}) or {}).items()}
-    return SimComparison(matches=matches, discrepancies=diffs,
-                         cover_same=(run.cover == sim_cover),
-                         owner_same=(run.owner == sim_owner),
-                         emulator_cover=run.cover, simulator_cover=sim_cover)
+    return SimComparison(
+        matches=matches,
+        discrepancies=diffs,
+        cover_same=(run.cover == sim_cover),
+        owner_same=(run.owner == sim_owner),
+        emulator_cover=run.cover,
+        simulator_cover=sim_cover,
+    )
 
 
 # ==========================================================================
 # 5. Rapor
 # ==========================================================================
-def report(run: RunCounters, *, target_edges: Optional[Iterable[Edge]] = None,
-           weights: Optional[Dict[int, float]] = None,
-           t_frame_ms: float = 0.7) -> Dict[str, Any]:
+def report(
+    run: RunCounters,
+    *,
+    target_edges: Optional[Iterable[Edge]] = None,
+    weights: Optional[Dict[int, float]] = None,
+    t_frame_ms: float = 0.7,
+) -> Dict[str, Any]:
     tot = run.totals()
     w = {int(k): float(v) for k, v in (weights or {}).items()}
     doc: Dict[str, Any] = {
@@ -565,12 +635,17 @@ def report(run: RunCounters, *, target_edges: Optional[Iterable[Edge]] = None,
         "tau_ms": run.tau_ms,
         "n_nodes": len(run.by_node),
         "totals": {
-            "tx": tot.tx, "rx": tot.rx, "bytes_tx": tot.bytes_tx,
-            "max_payload": tot.max_payload, "retx": tot.retx,
+            "tx": tot.tx,
+            "rx": tot.rx,
+            "bytes_tx": tot.bytes_tx,
+            "max_payload": tot.max_payload,
+            "retx": tot.retx,
             "radio_on_ms": tot.radio_on_ms,
             "radio_on_label": "elapsed active phase until quiescence; not a physical radio measurement",
-            "energy_mah_esp32_model": round(sum(c.energy_mah_esp32_model(t_frame_ms)
-                                    for c in run.by_node.values()), 6),
+            "energy_mah_esp32_model": round(
+                sum(c.energy_mah_esp32_model(t_frame_ms) for c in run.by_node.values()),
+                6,
+            ),
             "energy_label": Counters.ENERGY_LABEL,
             "by_type_tx": {str(k): v for k, v in sorted(tot.by_type_tx.items())},
             "by_phase_tx": {str(k): v for k, v in sorted(tot.by_phase_tx.items())},
@@ -581,8 +656,9 @@ def report(run: RunCounters, *, target_edges: Optional[Iterable[Edge]] = None,
         "cover_weight": round(sum(w.get(v, 0.0) for v in run.cover), 6),
         "owner": {f"{u}-{v}": o for (u, v), o in sorted(run.owner.items())},
         "health": {
-            "double_owned_edges": {f"{u}-{v}": nodes
-                                   for (u, v), nodes in run.double_owned_edges().items()},
+            "double_owned_edges": {
+                f"{u}-{v}": nodes for (u, v), nodes in run.double_owned_edges().items()
+            },
             "infeasible": run.infeasible,
             "unresolved": run.unresolved,
             "table_overflow": run.table_overflow,
@@ -594,6 +670,7 @@ def report(run: RunCounters, *, target_edges: Optional[Iterable[Edge]] = None,
             "send_failures": run.send_failures,
             "rssi_failures": run.rssi_failures,
             "rssi_implausible": run.rssi_implausible,
+            "restarts": run.restarts,
         },
         "asymmetric_claims": [list(p) for p in run.asymmetric_claims()],
     }
@@ -604,10 +681,14 @@ def report(run: RunCounters, *, target_edges: Optional[Iterable[Edge]] = None,
     return doc
 
 
-def collect(run_dir: str, *, tau_ms: int, t0_ms: Optional[int] = None,
-            target_edges: Optional[Iterable[Edge]] = None,
-            weights: Optional[Dict[int, float]] = None
-            ) -> Tuple[RunCounters, Dict[str, Any], Timeline]:
+def collect(
+    run_dir: str,
+    *,
+    tau_ms: int,
+    t0_ms: Optional[int] = None,
+    target_edges: Optional[Iterable[Edge]] = None,
+    weights: Optional[Dict[int, float]] = None,
+) -> Tuple[RunCounters, Dict[str, Any], Timeline]:
     logs = read_run(run_dir)
     run = counters_from_logs(logs, tau_ms=tau_ms, t0_ms=t0_ms)
     tl = timeline(logs, tau_ms=tau_ms, t0_ms=run.t0_ms, weights=weights)
@@ -616,6 +697,7 @@ def collect(run_dir: str, *, tau_ms: int, t0_ms: Optional[int] = None,
 
 def main(argv: Optional[List[str]] = None) -> int:
     import argparse
+
     ap = argparse.ArgumentParser(description="BB-CVC log collector")
     ap.add_argument("run_dir")
     ap.add_argument("--tau-ms", type=int, default=None)
@@ -628,8 +710,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     tau = a.tau_ms or int(meta.get("channel", {}).get("tau_ms", 0)) or 200
     weights = {int(k): float(v) for k, v in (meta.get("weights") or {}).items()}
     edges = [edge(int(u), int(v)) for u, v in (meta.get("edges") or [])] or None
-    run, doc, tl = collect(a.run_dir, tau_ms=tau, t0_ms=meta.get("t0_ms"),
-                           target_edges=edges, weights=weights)
+    run, doc, tl = collect(
+        a.run_dir,
+        tau_ms=tau,
+        t0_ms=meta.get("t0_ms"),
+        target_edges=edges,
+        weights=weights,
+    )
     doc["timeline"] = tl.as_dict()
     print(json.dumps(doc, indent=2, sort_keys=True))
     return 0

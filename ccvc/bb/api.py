@@ -93,6 +93,13 @@ class MsgType(IntEnum):
     GHS_REJECT = 23
     GHS_REPORT = 24
     GHS_CHANGE_ROOT = 25
+    #: R1 repair F17: the lazy certificate wave (an echo over the discovered
+    #: graph, started by the first node that uses up its repair rounds) and
+    #: its echo. Both use the edge-message body: CERT carries the wave's
+    #: initiator in `seq`; CERT_ACK carries it in `seq` and the subtree's sum
+    #: of min(deg, k) and sum of deg in `u` and `v`.
+    CERT = 26
+    CERT_ACK = 27
 
 
 # --------------------------------------------------------------------------

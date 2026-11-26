@@ -1247,6 +1247,7 @@ def run_case(c: Case, *, max_ms: int = 3_000_000) -> Dict[str, object]:
     doğrulayıcıdan gelir; bu dosya kendi geçerlilik ölçütünü YAZMAZ.
     """
     from ccvc.bb import validate as _validate
+    from ccvc.bb.sweep import validate_run
 
     edges, weights = connected_udg(c.n, c.radius, c.seed)
     adj = adjacency(edges, list(weights))
@@ -1257,7 +1258,7 @@ def run_case(c: Case, *, max_ms: int = 3_000_000) -> Dict[str, object]:
                    two_sided=c.two_sided)
     r = run_wuli(edges, weights, k, scheduler=c.scheduler, params=p, max_ms=max_ms)
     g = _validate.make_graph(edges, k, weights)
-    rep = _validate.validate(g, r.cover, r.owner)
+    rep = validate_run(g, r)
     ref = reference_backbone(adj, keys, p.k_max)["backbone"]
     degs = [len(a) for a in adj.values()]
     return {
@@ -1304,6 +1305,7 @@ def chunk_divergence_sweep(chunk_words: Sequence[int] = (1, 2, 4, 8),
     beklenen yön FAZLA işaretlemedir; eksik işaretleme çıkarsa bu bir HATADIR.
     """
     from ccvc.bb import validate as _validate
+    from ccvc.bb.sweep import validate_run
 
     rows: List[Dict[str, object]] = []
     for cw in chunk_words:
@@ -1332,7 +1334,7 @@ def chunk_divergence_sweep(chunk_words: Sequence[int] = (1, 2, 4, 8),
                     "max_payload": r.max_payload,
                     "bytes_tx": r.bytes_tx,
                     "tx": r.tx,
-                    "valid": _validate.validate(g, r.cover, r.owner).valid,
+                    "valid": validate_run(g, r).valid,
                 })
     return rows
 
@@ -1434,13 +1436,16 @@ def _spec_run(encoding: str, *, chunk_burst: bool = False, policy: str = POL_SAF
     zorunlu on beş alanın hepsi zaten yerindedir; uyarlayıcı gerekmez."""
 
     def run(req):
+        from ccvc.bb.sweep import with_overrides
+
         p = WuLiParams(
             encoding=encoding, policy=policy, chunk_burst=chunk_burst,
             mis_nbrs_max=max(int(getattr(req, "mis_nbrs_max", 0)), _SUMMARY_WORD_CAP),
         )
         return run_wuli(list(req.edges), dict(req.weights), req.k,
                         scheduler=req.scheduler, max_ms=req.max_ms,
-                        loss=req.loss, seed=req.seed, params=p)
+                        loss=req.loss, seed=req.seed,
+                        params=with_overrides(p, req))
 
     return run
 

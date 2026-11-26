@@ -757,12 +757,19 @@ def test_trickle_ceiling_stays_inside_the_soft_state_window():
 
     class Reckless(AnnealNode):
         pass
-    net = make_net(0, delay=simnet.uniform_delay(1, 60))
-    bad = AnnealParams(rng_seed=0, trickle=True,
-                       t_hello_max_ms=1600).resolved(W.values())
-    nodes = {nid: Reckless(W[nid], net.port(nid), bad, K) for nid in IDS}
-    out = sched.AsyncScheduler(net, nodes, tick_ms=200, seed=0, weights=W).run(400 * 200)
-    assert not V.validate(GRAPH, out.cover, out.owner).valid or not out.converged
+    # R1 repair F9 (adaptive stale window) removes this hazard: a receiver
+    # whose record of a slow sender expired and is heard again doubles its
+    # window for that sender. So the failure is asserted with F9 off, and
+    # with F9 on (the default) the same reckless ceiling now ends valid.
+    for adaptive in (False, True):
+        net = make_net(0, delay=simnet.uniform_delay(1, 60))
+        bad = AnnealParams(rng_seed=0, trickle=True, t_hello_max_ms=1600,
+                           adaptive_stale=adaptive).resolved(W.values())
+        nodes = {nid: Reckless(W[nid], net.port(nid), bad, K) for nid in IDS}
+        out = sched.AsyncScheduler(net, nodes, tick_ms=200, seed=0,
+                                   weights=W).run(400 * 200)
+        ok = V.validate(GRAPH, out.cover, out.owner).valid and out.converged
+        assert ok is adaptive
 
 
 # ==========================================================================
@@ -794,7 +801,9 @@ def test_hello_stays_small_and_density_independent():
     assert out.totals().max_payload <= wire.hello_size(AnnealParams().mis_nbrs_max,
                                                        anneal=True) == 31
     # ANNEAL hiç MIS rolü üretmez, dolayısıyla mis_nbrs alanı hep boştur
-    assert out.totals().max_payload <= wire.hello_size(0, anneal=True) == 21
+    # Amendment 13, G2(c): plus the bounded confirmation echo, still constant
+    assert wire.hello_size(0, anneal=True) == 21
+    assert out.totals().max_payload <= wire.hello_size(0, anneal=True, echo=wire.ECHO_MAX)
 
 
 def test_role_monotonicity_is_suspended_during_annealing_then_restored():

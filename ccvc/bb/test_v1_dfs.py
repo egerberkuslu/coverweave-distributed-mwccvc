@@ -103,6 +103,33 @@ def test_a_single_local_minimum_yields_no_preemption():
     assert sum(n.dfs_preempted for n in r.nodes.values()) == 0
 
 
+#: F19. Walks 1 and 2 start together. Node 4 offers walk 2's token to node 2
+#: in the slot in which walk 1 reaches node 4, so the refusal comes back to a
+#: node that has joined walk 1; once node 2 joins too, both refuse it to each
+#: other for ever and the channel never goes quiet.
+PING_PONG = [(1, 5), (2, 3), (2, 4), (3, 4), (4, 6), (5, 6)]
+#: F19. Node 5 joins walk 1 and bounces walk 2's token; walk 2 then reads node
+#: 5 as visited, finishes first and floods its DFS_DONE, so node 2 leaves the
+#: walk phase and never returns walk 1's token to node 5.
+EARLY_DONE = [(1, 4), (1, 5), (2, 3), (2, 5), (4, 5), (5, 6)]
+
+
+@pytest.mark.parametrize("edges", [PING_PONG, EARLY_DONE],
+                         ids=["ping_pong", "early_done"])
+@pytest.mark.parametrize("scheduler", ["sync", "async"])
+def test_a_larger_walk_dies_on_contact(edges, scheduler):
+    """Extinction: a TOKEN of a larger walk is ignored, never sent back.
+
+    Both graphs have two local minima. On the code before F19 the
+    synchronous runs end truncated on a lossless channel.
+    """
+    r = _run(edges, scheduler=scheduler)
+    assert r.verdict == "solved", r.verdict
+    assert _validate(r, edges).valid
+    got = {nid for nid, nd in r.nodes.items() if nd.dfs_internal}
+    assert got == set(dfs_internal_nodes(sorted(_w(edges)), list(edges)))
+
+
 # ------------------------------------------------------------- schedulers
 @pytest.mark.parametrize("name", ["path5", "bridge", "two_frag"])
 def test_the_same_node_class_serves_both_schedulers(name):
