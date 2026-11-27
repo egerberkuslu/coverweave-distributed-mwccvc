@@ -158,6 +158,20 @@ Amendment 10 adds:
   F16b `_handoff_open`: a node that expires a neighbour it held as DONE keeps
      its barrier open and announces its epoch until it hears that neighbour in
      it or twice the stale cap has passed since its latest restart.
+Amendment 17 (R2R3-repair; the Lean model of the handlers refuted Theorem 3(b),
+formal ExecFullTransfer.lean) replaces F10 and corrects F14:
+  R2 `_finish_push_job`: a PUSH refused while my chain serves it stays refused:
+     every later answer to it is NACK, also when a later transfer gave me e.
+     The chain runs on but takes nothing, so its success can no longer turn
+     into a late acknowledgement the sender has already overridden
+     (`traceBusy`); the slot it freed is there for the sender's next offer.
+  R3 `_repeat_ok`: a copy that missed the cache is acknowledged only if I hold
+     the edge with my edge count one above the carried one, the state its
+     acceptance left; otherwise it is refused (`traceRepeat`). F7's refusal
+     replays the cache and answers by the same rule.
+  R4 `_accept_edge`: a take is counted, and my offer retracted, only when the
+     acceptance succeeds, after the room test; a refusal for lack of room no
+     longer makes the ACK of my own crossing offer stale.
 """
 from __future__ import annotations
 
@@ -439,7 +453,7 @@ class PushJob:
     probing: Optional[int] = None   # the neighbour I am probing right now
     probe_edge: Optional[Edge] = None
     #: I answered a retransmission of THIS request with a busy NACK, so the
-    #: sender has given up on it and my final ACK will be late (F10).
+    #: sender has given up on it and this chain must not take the edge (R2).
     nacked: bool = False
 
 
@@ -2111,10 +2125,16 @@ class BbcvcNode(BootstrapNode):
             nack = MsgType.HANDOVER_NACK if mt is MsgType.HANDOVER else MsgType.PUSH_NACK
             payload = self._edge_payload(nack, msg.seq, edge(msg.u, msg.v))
         job = self._push_job
-        if mt is MsgType.PUSH and job is not None and (job.src, job.seq) == (n.nid, msg.seq):
-            # F14b: a copy of the PUSH my chain serves; as with F10's busy refusal
-            # the sender gives up on it, so my chain's answer must be the late one.
+        cached = None if mt is MsgType.JOIN else self._seen_get((n.nid, int(mt), msg.seq))
+        if cached is not None:
+            payload = cached             # R3: a copy gets the answer its request got
+        elif mt is MsgType.PUSH and job is not None and (job.src, job.seq) == (n.nid, msg.seq):
+            # F14b: a copy of the PUSH my chain serves; as with the busy refusal
+            # the sender gives up on it, so my chain must not take the edge (R2).
             job.nacked = True
+        elif mt is not MsgType.JOIN and self._repeat_ok(msg, edge(msg.u, msg.v)):
+            ack = MsgType.HANDOVER_ACK if mt is MsgType.HANDOVER else MsgType.PUSH_ACK
+            payload = self._edge_payload(ack, msg.seq, edge(msg.u, msg.v))   # R3
         self._log("refused_unverified", peer=n.nid, mtype=int(mt))
         self._ucast(n, payload)
 
@@ -2320,7 +2340,7 @@ class BbcvcNode(BootstrapNode):
             return
         e = edge(msg.u, msg.v)
         if self._repeated(n.nid, msg.seq):
-            ok = self._explicit.get(e) is True   # F14: held by a transfer?
+            ok = self._repeat_ok(msg, e)         # F14, R3
         elif self._stale_version(msg, e):
             ok = False                           # G7: overtaken by a later transfer
             self._log("stale_version", peer=n.nid, edge=e)
@@ -2328,6 +2348,22 @@ class BbcvcNode(BootstrapNode):
             ok = not self._yields_to_inbound(e, n) and self._accept_edge(e)
         mt = MsgType.HANDOVER_ACK if ok else MsgType.HANDOVER_NACK
         self._reply(n.nid, self._edge_payload(mt, msg.seq, e), key)
+
+    def _repeat_ok(self, msg, e: Edge) -> bool:
+        """R3 (Amendment 17): the answer to a copy that missed the cache (F14, F7).
+
+        F14 answered "do I hold e", which is not the answer the request got: a
+        request refused as stale whose refusal the cache evicted was then
+        acknowledged, and both ends released the edge (Lean `traceRepeat`).
+        Accepting the request left me holding e with my edge count one above the
+        count it carries (G7), and that state lasts until its sender reads an
+        answer: the sender has one open transfer per neighbour (F14b), and G7
+        refuses every other transfer of e between us until then. Any other state
+        means the request was refused or not executed, and a refusal changes
+        nothing at its sender.
+        """
+        return (self._explicit.get(e) is True
+                and (self._gen.get(e, 0) & 0xFF) == ((getattr(msg, "gen", 0) + 1) & 0xFF))
 
     def _yields_to_inbound(self, e: Edge, peer: BootNeighbor) -> bool:
         """Break the MUTUAL transfer race for the same edge, deterministically.
@@ -2373,7 +2409,14 @@ class BbcvcNode(BootstrapNode):
 
         Accepting is the moment my offer stops being true, so it is retracted
         here and the section 99 guard then refuses the stale ACK by itself.
+
+        R4 (Amendment 17): only an acceptance that succeeds retracts the offer
+        and counts a take. Counted before the room test, a refusal for lack of
+        room moved theta, and the ACK of my own crossing offer was then refused
+        as stale: I kept the edge the peer had accepted (Lean bounded search).
         """
+        if not self._has_room(e):
+            return False
         self._offered.discard(e)
         self._takes[e] = self._takes.get(e, 0) + 1
         self._retake_seq[e] = self._seq
@@ -2388,8 +2431,6 @@ class BbcvcNode(BootstrapNode):
             self._explicit[e] = True
             self._bump(e)   # G7: the receiver's side of a completed transfer
             return True
-        if len(self.owned) >= self.k:
-            return False
         self._explicit[e] = True
         self._bump(e)       # G7
         self.owned.add(e)
@@ -2427,8 +2468,8 @@ class BbcvcNode(BootstrapNode):
         job = self._push_job
         busy = job is not None and (job.src, job.seq) == (n.nid, msg.seq)
         if not busy and self._repeated(n.nid, msg.seq):
-            # F14: answered like a HANDOVER
-            mt = MsgType.PUSH_ACK if self._explicit.get(e) is True else MsgType.PUSH_NACK
+            # F14: answered like a HANDOVER (R3)
+            mt = MsgType.PUSH_ACK if self._repeat_ok(msg, e) else MsgType.PUSH_NACK
             self._reply(n.nid, self._edge_payload(mt, msg.seq, e), key)
             return
         if self._yields_to_inbound(e, n) or (not busy and self._stale_version(msg, e)):
@@ -2438,10 +2479,11 @@ class BbcvcNode(BootstrapNode):
         # F14b: a copy of the request my chain serves changes nothing but by
         # taking the edge: held already, it is acknowledged without counting an
         # acquisition, and without room only the busy flag below is set.
-        if busy and self._explicit.get(e) is True:
+        if busy and self._explicit.get(e) is True and not job.nacked:
             took = True
         else:
-            took = (not busy or self._has_room(e)) and self._accept_edge(e)
+            # R2: once a copy was refused, a later one does not take the edge
+            took = (not busy or (self._has_room(e) and not job.nacked)) and self._accept_edge(e)
         if took:
             self._reply(n.nid, self._edge_payload(MsgType.PUSH_ACK, msg.seq, e), key)
             return
@@ -2483,21 +2525,15 @@ class BbcvcNode(BootstrapNode):
         # Measured: (5,15) fell through exactly this way on a 15-node UDG.
         # F14b: a copy of this request may have taken the edge while the chain
         # ran and been acknowledged; a failed chain must not answer NACK then.
-        took = (self._accept_edge(job.e) if ok else False) or self._explicit.get(job.e) is True
+        # R2 (Amendment 17, replaces F10): after a busy refusal the sender keeps
+        # the edge, so the chain must not take it. F10 took it and sent a late
+        # ACK, and a HANDOVER the sender accepted meanwhile left two owners.
+        # Once refused, every later answer is NACK, even if a later transfer of the
+        # edge gave it to me: an ACK here would answer a request already NACKed.
+        took = not job.nacked and ((self._accept_edge(job.e) if ok else False)
+                                   or self._explicit.get(job.e) is True)
         mt = MsgType.PUSH_ACK if took else MsgType.PUSH_NACK
         key = (job.src, int(MsgType.PUSH), job.seq)
-        if took and job.nacked:
-            # REPAIR F10. The sender resolved this request on my busy NACK and
-            # kept the edge, so this ACK is LATE and nobody would ask for it
-            # again: sent once and lost, it left both ends owning the edge. It
-            # is therefore a request of its own, repeated by `_retry_pending`
-            # until the sender confirms it, and while it is open I am not done.
-            payload = self._edge_payload(mt, job.seq, job.e, LATE_ASK)
-            self._reply(job.src, payload, key)
-            self._arm(now, Pending(seq=_LATE_KEY | job.seq, peer=job.src,
-                                   mtype=MsgType.PUSH_ACK, payload=payload,
-                                   e=job.e, tag="late_ack"))
-            return
         self._reply(job.src, self._edge_payload(mt, job.seq, job.e), key)
 
     def _on_ack(self, now: int, peer: int, seq: int, ok: bool) -> None:

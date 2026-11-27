@@ -755,19 +755,38 @@ def execute(
 def quiescence(
     plan: RunPlan, logs: Dict[int, Any], rel_ms: int, *, quiet_slots: int = 3
 ) -> Tuple[bool, int, int]:
-    """Wait in the logs' run-relative clock, counting only surviving nodes."""
+    """Wait in the logs' run-relative clock, counting only surviving nodes.
+
+    Amendment 18: a node counts as done only when its LATEST done record is
+    `node_done` (not followed by `node_undone`), and the run is quiet only when
+    no surviving node restarted (reset_phase0, epoch_bump) after the last stamp.
+    Reading the first `node_done` let a run stop, or be labelled converged,
+    while nodes that had been done once were running a new epoch.
+    """
     killed = {f.nid for f in plan.faults if f.kind == "kill" and f.at_ms <= rel_ms}
     alive = set(plan.spec.peers) - killed
     stamps = []
+    last_restart = None
     for nid in alive:
         log = logs.get(nid)
-        record = log.first_of("node_done") if log else None
-        if record is not None:
-            stamps.append(int(record.get("t_end_ms", record["t_ms"])))
+        if log is None:
+            continue
+        latest = None
+        for r in log.records:
+            ev = r.get("event")
+            if ev in ("node_done", "node_undone"):
+                latest = r
+            elif ev in ("reset_phase0", "epoch_bump"):
+                t = int(r["t_ms"])
+                last_restart = t if last_restart is None else max(last_restart, t)
+        if latest is not None and latest.get("event") == "node_done":
+            stamps.append(int(latest.get("t_end_ms", latest["t_ms"])))
     done = len(stamps)
+    last = max(stamps, default=0)
     quiet = (
         done == len(alive)
-        and rel_ms >= max(stamps, default=0) + quiet_slots * plan.spec.channel.tau_ms
+        and (last_restart is None or last_restart <= last)
+        and rel_ms >= last + quiet_slots * plan.spec.channel.tau_ms
     )
     return quiet, done, len(alive)
 

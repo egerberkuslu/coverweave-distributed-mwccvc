@@ -24,7 +24,7 @@ from ccvc.bb.api import MsgType  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TAU = 200
-PUSH_ACK = int(MsgType.PUSH_ACK)
+PUSH_NACK = int(MsgType.PUSH_NACK)
 
 
 def dev(name):
@@ -57,14 +57,14 @@ def copies_dropped(n, src, dst, mtype, t_from):
 
 
 # --------------------------------------------------------------------------
-# F10: the late acknowledgement is a request repeated until it is confirmed
+# F10, replaced by R2 (Amendment 17): a refused chain takes nothing
 # --------------------------------------------------------------------------
 #: Development graph n20_m80_s1 at capacity k = 5 (slack: m = 80 < nk = 100),
 #: lossless. A push chain at node B outlasts node A's timeout, A's
-#: retransmission gets a busy NACK and A keeps the edge; the chain then
-#: succeeds, B takes the edge and sends the late acknowledgement B -> A.
-#: Before F10 that frame was sent once: losing it ended the run `solved` with
-#: the edge owned by both ends (sync: (4, 16); async: (6, 13)).
+#: retransmission gets a busy NACK and A keeps the edge. Under F10 the chain
+#: then succeeded, B took the edge and sent a late acknowledgement B -> A that
+#: had to be confirmed, the mechanism of the Lean run `traceBusy`. Under R2 the
+#: refused chain succeeds at the same moment (`t_sent`) but takes nothing.
 F10_CASES = [
     pytest.param("sync", 16, 4, 11_000, (4, 16), id="sync-16-to-4"),
     pytest.param("async", 13, 6, 7_218, (6, 13), id="async-13-to-6"),
@@ -86,63 +86,47 @@ def f10_run(scheduler, drop=None):
     )
 
 
+def late_events(r):
+    return [x for x in r.net.log_records if x["event"].startswith("late_ack")]
+
+
+def chain_ends(monkeypatch):
+    """Record (node, source, edge, refused, outcome, time) of every chain end."""
+    out = []
+    orig = bbcvc.BbcvcNode._finish_push_job
+
+    def wrap(self, now, ok):
+        j = self._push_job
+        if j is not None:
+            out.append((self.nid, j.src, j.e, j.nacked, ok, now))
+        return orig(self, now, ok)
+
+    monkeypatch.setattr(bbcvc.BbcvcNode, "_finish_push_job", wrap)
+    return out
+
+
 @pytest.mark.parametrize("scheduler,b,a,t_sent,e", F10_CASES)
-def test_F10_lossless_run_has_the_late_acknowledgement(scheduler, b, a, t_sent, e):
+def test_R2_a_refused_chain_takes_nothing(monkeypatch, scheduler, b, a, t_sent, e):
+    ends = chain_ends(monkeypatch)
     r = f10_run(scheduler)
-    late = [
-        x
-        for x in r.net.log_records
-        if x["event"] == "late_ack_release" and (x["nid"], x["peer"]) == (a, b)
-    ]
-    assert [x["edge"] for x in late] == [e]
+    assert (b, a, e, True, True, t_sent) in ends, "the refused chain succeeds"
     assert r.verdict == "solved" and r.double_claimed == {}
-    events = collections.Counter(x["event"] for x in r.net.log_records)
-    assert events["late_ack_confirmed"] == events["late_ack_release"] >= 1
+    assert late_events(r) == [], "R2: no late acknowledgement exists"
+    assert not any(n._pending for n in r.nodes.values())
 
 
 @pytest.mark.parametrize("scheduler,b,a,t_sent,e", F10_CASES)
-def test_F10_late_acknowledgement_lost_three_times_leaves_no_double_claim(
+def test_R2_busy_refusal_lost_three_times_leaves_no_double_claim(
     scheduler, b, a, t_sent, e
 ):
-    drop = copies_dropped(3, b, a, PUSH_ACK, t_sent)
+    drop = copies_dropped(3, b, a, PUSH_NACK, 0)
     r = f10_run(scheduler, drop)
     assert r.converged and r.verdict == "solved"
     assert r.double_claimed == {}, r.double_claimed
     g = validate.make_graph(r.net.edges, 5, {i: n.w for i, n in r.nodes.items()})
     assert validate.validate(g, r.cover, r.owner).valid
     assert len(drop.sent) >= 4, "three copies lost, a fourth is sent"
-    events = collections.Counter(
-        (x["event"], x["nid"])
-        for x in r.net.log_records
-        if x["event"] in ("late_ack_release", "late_ack_confirmed")
-    )
-    assert events[("late_ack_release", a)] >= 1
-    assert events[("late_ack_confirmed", b)] >= 1
-    assert not any(n._pending for n in r.nodes.values())
-
-
-@pytest.mark.parametrize("scheduler,b,a,t_sent,e", F10_CASES)
-def test_F10_lost_confirmations_are_answered_again_and_change_nothing(
-    scheduler, b, a, t_sent, e
-):
-    """The first two confirmations A -> B are lost: B repeats its late
-    acknowledgement, A finds the edge already released, changes nothing and
-    confirms again."""
-    drop = copies_dropped(2, a, b, PUSH_ACK, t_sent)
-    r = f10_run(scheduler, drop)
-    assert r.converged and r.verdict == "solved" and r.double_claimed == {}
-    releases = [
-        x
-        for x in r.net.log_records
-        if x["event"] == "late_ack_release" and (x["nid"], x["peer"]) == (a, b)
-    ]
-    assert [x["edge"] for x in releases] == [e], "released once, not per copy"
-    retx = [
-        x
-        for x in r.net.log_records
-        if x["event"] == "retx" and x["nid"] == b and x.get("tag") == "late_ack"
-    ]
-    assert len(retx) >= 2
+    assert late_events(r) == []
     assert not any(n._pending for n in r.nodes.values())
 
 
@@ -253,7 +237,11 @@ def test_F11_the_m_equals_nk_instance_is_solved_by_deepening():
     perfect 6-orientation is valid. Before F11 the MIS-connector arm used up
     its repair rounds at depth 3 and ended `unresolved` with an overloaded
     node (load 7). With F11 the depth doubles after the rounds (6 suffices)
-    and the run ends solved and valid. Simulator, lossless, synchronous."""
+    and the run ends solved and valid. Simulator, lossless, synchronous.
+    Amendment 17: that solution used 129 late acknowledgements of F10, the
+    mechanism of the Lean run `traceBusy`. With R2 a refused chain takes
+    nothing, and the run ends unresolved with one overloaded node and no
+    double claim; this quality loss is an endpoint of the amendment."""
     e, w = dev("n200_m1200_s6")
     r = bbcvc.run_bbcvc(
         e,
@@ -265,9 +253,9 @@ def test_F11_the_m_equals_nk_instance_is_solved_by_deepening():
         seed=1,
         watch_ms=0,
     )
-    assert r.verdict == "solved" and r.double_claimed == {}
-    g = validate.make_graph(r.net.edges, 6, {i: n.w for i, n in r.nodes.items()})
-    assert validate.validate(g, r.cover, r.owner).valid
+    assert r.verdict == "unresolved" and r.converged and r.double_claimed == {}
+    assert sum(len(n.owned) > n.k for n in r.nodes.values()) == 1
+    assert not [x for x in r.net.log_records if x["event"].startswith("late_ack")]
     deepen = [x["ttl"] for x in r.net.log_records if x["event"] == "push_deepen"]
     # F17b (Amendment 11): the doubling from 3 stops at the cap D_max = 8, so 3, 6, 8
     cap = bbcvc.BbcvcParams().push_depth_max
@@ -436,7 +424,11 @@ def test_F11b_a_relayed_invitation_resolves_the_documented_obstruction(scheduler
     is out of reach of local escalation (bbcvc.py's header). Before F11b the
     run ended `unresolved` after deepening to n. Now the overloaded node
     relays an invitation through the cover, a node with an outside neighbour
-    invites it, and the run ends solved and valid with |C| = 90."""
+    invites it, and the run ends solved and valid with |C| = 90.
+    Amendment 17: the obstruction formed after nine late acknowledgements of
+    F10 (`late_ack_release`); with R2 they do not exist, the obstruction does
+    not form and the run ends solved and valid with |C| = 90 without the relay.
+    The relay itself is tested on the worked example below."""
     from ccvc.bb import figures
 
     e, w, _ = figures.udg_instance(100, 0.15, 4)
@@ -444,7 +436,7 @@ def test_F11b_a_relayed_invitation_resolves_the_documented_obstruction(scheduler
     assert r.verdict == "solved" and len(r.cover) == 90
     assert validate.validate(validate.make_graph(e, 4, w), r.cover, r.owner).valid
     ev = collections.Counter(x["event"] for x in r.net.log_records)
-    assert ev["far_start"] >= 1 and ev["far_escalate"] >= 1
+    assert ev["late_ack_release"] == 0
     assert not any(n._pending or n._far_job for n in r.nodes.values())
 
 

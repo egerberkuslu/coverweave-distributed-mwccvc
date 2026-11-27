@@ -217,7 +217,9 @@ def test_F14b_one_own_transfer_per_neighbour():
 #: after, seeds 6 and 14 still carry an evicted repeat and all carry busy copies.
 # note to Amendment 15: with the link gate the evicted-copy case no longer occurs on
 # seeds 0, 6, 14; seed 1 is added for it (24 seeds checked, no inconsistency on any)
-INSTANCE, LOSS, SEEDS = "n10_m40_s2", 0.3, (0, 6, 14, 1)
+# Amendment 17: with R2 the evicted-copy case no longer occurs on seeds 0, 6,
+# 14 and 1; of seeds 2 to 29, seeds 5 and 21 show it, so seed 5 was added.
+INSTANCE, LOSS, SEEDS = "n10_m40_s2", 0.3, (0, 6, 14, 1, 5)
 
 
 def test_F14_on_lossy_development_runs_requests_and_answers_agree(monkeypatch):

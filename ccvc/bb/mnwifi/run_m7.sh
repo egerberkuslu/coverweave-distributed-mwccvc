@@ -19,7 +19,8 @@ set +x
 set -euo pipefail
 trap 'echo "interrupted; finished rows are kept" >&2; exit 130' INT TERM
 
-TAG=coverweave-r1-frozen
+# M7_TAG names another annotated tag, e.g. the repaired version of Amendment 17.
+TAG=${M7_TAG:-coverweave-r1-frozen}
 LIVE=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 RELEASE=$HOME/Desktop/bbcvc-release
 DATASET=$LIVE/data/DagdevirenDataset

@@ -459,7 +459,7 @@ def synthetic_run(tmp_path):
         {"t_ms": 1050, "event": "retx", "n": 2},
         {"t_ms": 1060, "event": "node_done", "role": int(Role.MIS)},
         {"t_ms": 1100, "event": "run_end", "role": int(Role.MIS), "owned": [[1, 2]],
-         "deg": 1, "key_fp": 111, "epoch": 0, "bidir": [2], "infeasible": False,
+         "deg": 1, "key_fp": 111, "epoch": 0, "bidir": [2], "infeasible": False, "done": True,
          "unresolved": False, "table_overflow": 0, "id_rederivations": 0},
     ])
     write_log(tmp_path, 2, m2, [
@@ -470,7 +470,7 @@ def synthetic_run(tmp_path):
         {"t_ms": 1045, "event": "rx", "src": topo.format_mac(m1), "mtype": 1, "bytes": 12},
         {"t_ms": 1080, "event": "node_done", "role": int(Role.COVER)},
         {"t_ms": 1100, "event": "run_end", "role": int(Role.COVER), "owned": [],
-         "deg": 1, "key_fp": 222, "epoch": 0, "bidir": [1], "infeasible": False,
+         "deg": 1, "key_fp": 222, "epoch": 0, "bidir": [1], "infeasible": False, "done": True,
          "unresolved": False, "table_overflow": 0, "id_rederivations": 0},
     ])
 
@@ -1400,6 +1400,60 @@ def test_quiescence_uses_relative_end_of_slot_and_waits(tmp_path):
         for nid in plan.spec.peers}
     assert runner_mod.quiescence(plan, logs, 1000 + 3 * tau)[0] is False
     assert runner_mod.quiescence(plan, logs, 1000 + 4 * tau)[0] is True
+
+
+def test_quiescence_stops_only_on_the_latest_state_of_every_node(tmp_path):
+    """Amendment 18: a node that was done once and then restarted is not done.
+
+    The stop rule of Amendment 17 read each node's FIRST node_done, so a run
+    whose nodes had each been done in some epoch could be stopped while they ran
+    a new one."""
+    plan = runner_mod.make_plan(EDGES, WEIGHTS, K, run_id="latest",
+                                run_root=str(tmp_path))
+    tau = plan.spec.channel.tau_ms
+    done = [{"event": "node_done", "t_ms": 1000, "t_end_ms": 1000}]
+    logs = {nid: collector.NodeLog(nid, 0, "", list(done)) for nid in plan.spec.peers}
+    assert runner_mod.quiescence(plan, logs, 1000 + 3 * tau)[0] is True
+    logs[4].records += [{"event": "reset_phase0", "t_ms": 1500},
+                        {"event": "node_undone", "t_ms": 1500, "t_end_ms": 1500 + tau}]
+    assert runner_mod.quiescence(plan, logs, 10_000)[:2] == (False, len(logs) - 1)
+    logs[4].records.append({"event": "node_done", "t_ms": 2000, "t_end_ms": 2000})
+    assert runner_mod.quiescence(plan, logs, 2000 + 2 * tau)[0] is False
+    assert runner_mod.quiescence(plan, logs, 2000 + 3 * tau)[0] is True
+    # A restart after the last stamp holds the stop even before node_undone is read.
+    logs[7].records.append({"event": "epoch_bump", "t_ms": 2100})
+    assert runner_mod.quiescence(plan, logs, 10_000)[0] is False
+
+
+def test_node_runner_restamps_done_and_logs_leaving_it():
+    """node_main writes node_done on every entry into done and node_undone on
+    every exit, so the last record says whether the latest state is done."""
+
+    class Port:
+        def __init__(self):
+            self.recs = []
+
+        def log(self, event, **kw):
+            self.recs.append({"event": event, **kw})
+
+    class Node:
+        role, phase = Role.OUT, 0
+        seq = iter([False, True, True, False, True])
+
+        def on_frame(self, *a):
+            pass
+
+        def on_timer(self, _):
+            self.done = next(self.seq)
+
+    port = Port()
+    r = NodeRunner(Node(), port, mode="sync", tau_ms=10, deadline_ms=10 ** 9,
+                   log_dir="")
+    for slot in range(5):
+        r.fire(slot)
+    seen = [(x["event"], x["t_end_ms"]) for x in port.recs]
+    assert seen == [("node_done", 20), ("node_undone", 40), ("node_done", 50)]
+    assert r.done_ms == 50
 
 
 def test_quiescence_excludes_killed_nodes_without_masking_live_nodes(tmp_path):
