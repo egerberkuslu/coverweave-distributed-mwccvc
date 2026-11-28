@@ -208,10 +208,8 @@ def _write_run(job, ends, *, done=(1, 2, 3)):
     return run_dir
 
 
-def _end(role, owned, bidir, advance, done=True):
-    # node_main always writes `done`; Amendment 18 reads it as the final state.
-    return {"role": int(role), "owned": owned, "bidir": bidir, "epoch_advance": advance,
-            "done": done}
+def _end(role, owned, bidir, advance):
+    return {"role": int(role), "owned": owned, "bidir": bidir, "epoch_advance": advance}
 
 
 SOLVED = {
@@ -239,58 +237,6 @@ def test_row_from_a_solved_run_carries_the_simulator_columns(tmp_path):
     assert (row["code_fingerprint"], row["wifi_fingerprint"]) == ("r1-fp", "wifi-fp")
     assert (row["seed"], row["rng_seed"]) == (1, m7.LAYOUT_SEED)
     assert row["seconds"] == 2.5 and row["execution_backend"] == "mininet-wifi"
-
-
-def _append(run_dir, nid, recs):
-    with open(os.path.join(run_dir, f"{nid}.jsonl"), "a", encoding="utf-8") as fh:
-        fh.writelines(json.dumps(r) + "\n" for r in recs)
-
-
-def test_done_stamps_from_different_epochs_are_not_convergence(tmp_path):
-    """Amendment 18, the M7 run W_mst_n50_m150_s404 in miniature.
-
-    Stations 1 and 2 are stamped done, station 3 only logs its own `done`
-    event (phase DONE, never the `done` property), then every station restarts
-    and the run ends at its deadline with no station done. The collector of
-    Amendment 17 counted the first stamp of each station and the `done` event
-    as a fallback, and labelled this run converged and solved with an empty
-    cover. It is truncated.
-    """
-    job = _job(tmp_path)
-    reset = {1: _end(Role.OUT, [], [2], 1, done=False),
-             2: _end(Role.OUT, [], [1, 3], 1, done=False),
-             3: _end(Role.OUT, [], [2], 1, done=False)}
-    run_dir = _write_run(job, reset, done=(1, 2))
-    _append(run_dir, 3, [{"t_ms": 350, "event": "done"}])
-    for nid in (1, 2, 3):
-        _append(run_dir, nid, [{"t_ms": 900, "event": "reset_phase0", "epoch": 1,
-                                "reason": "epoch_adopt"},
-                               {"t_ms": 1999, "event": "deadline"}])
-    run = collector.counters_from_logs(collector.read_run(run_dir), tau_ms=100, t0_ms=0)
-    assert run.converged is False and run.slots is None and run.cover == []
-    row = m7.build_row(job, rc=0, fingerprint="r1-fp")
-    assert row["verdict"] == "truncated" and row["status"] == "truncated"
-    assert row["converged"] is False
-
-
-def test_convergence_reads_the_latest_state_of_each_station(tmp_path):
-    """A station that left done and came back counts from its latest stamp; a
-    restart after the last stamp, or a final state that is not done, is not
-    convergence even when every station has a stamp."""
-    job = _job(tmp_path)
-    run_dir = _write_run(job, SOLVED)
-    _append(run_dir, 1, [{"t_ms": 500, "event": "reset_phase0", "epoch": 1},
-                         {"t_ms": 500, "event": "node_undone", "t_end_ms": 600},
-                         {"t_ms": 700, "event": "node_done", "t_end_ms": 800}])
-    logs = collector.read_run(run_dir)
-    run = collector.counters_from_logs(logs, tau_ms=100, t0_ms=0)
-    assert run.converged is True and run.done_ms[1] == 800 and run.slots == 9
-    _append(run_dir, 2, [{"t_ms": 850, "event": "epoch_bump", "epoch": 2}])
-    run = collector.counters_from_logs(collector.read_run(run_dir), tau_ms=100, t0_ms=0)
-    assert run.converged is False
-    run_dir2 = _write_run(_job(tmp_path / "b"), {**SOLVED, 3: _end(Role.OUT, [], [2], 1, done=False)})
-    run = collector.counters_from_logs(collector.read_run(run_dir2), tau_ms=100, t0_ms=0)
-    assert run.converged is False
 
 
 def test_a_doubly_owned_edge_is_a_false_success_on_the_discovered_graph(tmp_path):

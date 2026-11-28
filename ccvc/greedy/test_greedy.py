@@ -326,7 +326,7 @@ def test_archived_counter_provenance_gates_on_coherent_offline_fixture(tmp_path)
         records += [{"event": "node_done", "t_ms": 3 * tau, "t_end_ms": 3 * tau},
                     {"event": "run_end", "t_ms": 4 * tau, "role": int(Role.COVER),
                      "owned": [list(edge) for edge, owner in owners.items() if owner == node],
-                     "bidir": sorted(graph.adj[node]), "done": True, "tx": 999999}]
+                     "bidir": sorted(graph.adj[node]), "tx": 999999}]
         (tmp_path / f"offline-fixture/{node}.jsonl").write_text(
             "".join(json.dumps(record) + "\n" for record in records))
     report = verify_run(meta_path.parent)

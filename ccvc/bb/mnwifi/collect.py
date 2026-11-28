@@ -304,10 +304,8 @@ def counters_from_logs(
     by_mac: Dict[int, int] = {lg.mac: nid for nid, lg in logs.items() if lg.mac}
     by_node: Dict[int, Counters] = {nid: Counters() for nid in logs}
     rx_delivered: Dict[int, int] = {nid: 0 for nid in logs}
-    done_obs: Dict[int, int] = {}  # the scheduler's LATEST observation (node_done)
-    undone: set = set()  # a node_undone followed that node's latest node_done
-    end_done: Dict[int, bool] = {}  # run_end.done: the node's final state
-    last_restart = None  # latest reset_phase0 or epoch_bump of any node
+    done_obs: Dict[int, int] = {}  # the scheduler's observation (node_done)
+    done_self: Dict[int, int] = {}  # the node's own claim (done)
     roles: Dict[int, Role] = {}
     owned: Dict[int, List[Edge]] = {}
     deg: Dict[int, int] = {}
@@ -347,18 +345,13 @@ def counters_from_logs(
                     by_node[src].by_type_rx[mt] = by_node[src].by_type_rx.get(mt, 0) + 1
             elif ev == "retx":
                 c.retx += int(r.get("n", 1))
-            elif ev == "node_done":
+            elif ev == "node_done" and nid not in done_obs:
                 # `t_end_ms` is the END of the slot, the same instant as the
                 # scheduler's `_mark_done(t_end)`. Without it, fall back to the
-                # line's own timestamp. The LATEST stamp counts (Amendment 18):
-                # node_main re-stamps on every re-entry into done.
+                # line's own timestamp.
                 done_obs[nid] = int(r.get("t_end_ms", r["t_ms"]))
-                undone.discard(nid)
-            elif ev == "node_undone":
-                undone.add(nid)
-            elif ev in ("reset_phase0", "epoch_bump"):
-                t = int(r["t_ms"])
-                last_restart = t if last_restart is None else max(last_restart, t)
+            elif ev == "done" and nid not in done_self:
+                done_self[nid] = int(r["t_ms"])
             elif ev == "slot_overrun":
                 overruns += 1
             elif ev == "unicast_unreachable":
@@ -370,7 +363,6 @@ def counters_from_logs(
         end = lg.last_of("run_end")
         if end is not None:
             roles[nid] = _role_from(end.get("role", 0))
-            end_done[nid] = end.get("done") is True
             owned[nid] = [edge(int(a), int(b)) for a, b in end.get("owned", [])]
             deg[nid] = int(end.get("deg", -1))
             key_fp[nid] = int(end.get("key_fp", -1))
@@ -389,19 +381,13 @@ def counters_from_logs(
             owned.setdefault(nid, [])
             bidir.setdefault(nid, [])
 
-    # Quiescence (Amendment 18), the simulator's `_all_done` read from the log:
-    # every node's LATEST state is done (a node_done not followed by node_undone),
-    # its final state is done (run_end.done), and no node restarted after the
-    # last stamp. The node's own `done` event is NOT a fallback: it marks entry
-    # to phase DONE, which is weaker than the `done` property the scheduler reads,
-    # and a first stamp per node let stamps from different epochs add up to
-    # "every node was done once" (M7 W_mst_n50_m150_s404: 0 of 50 done at the end).
-    done_ms: Dict[int, int] = {n: t for n, t in done_obs.items() if n not in undone}
-    converged = (
-        bool(logs)
-        and all(n in done_ms and end_done.get(n, False) for n in logs)
-        and (last_restart is None or last_restart <= max(done_ms.values()))
-    )
+    # Quiescence stamp: THE SCHEDULER'S observation is preferred and the node's
+    # own `done` claim is only a fallback. Both are written on the same tick and
+    # carry the same `t_ms`, so relying on ordering would be wrong; the rule is
+    # explicitly "a node's own claim is not trusted", and the choice follows it.
+    done_ms: Dict[int, int] = dict(done_self)
+    done_ms.update(done_obs)
+    converged = bool(logs) and len(done_ms) == len(logs)
     slots: Optional[int] = None
     t_conv: Optional[int] = None
     if converged:

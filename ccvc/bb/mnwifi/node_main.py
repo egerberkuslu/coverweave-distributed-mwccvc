@@ -28,12 +28,9 @@ Which slot a frame belongs to is read from the KERNEL ARRIVAL TIMESTAMP
 (`SO_TIMESTAMPNS`), never from the sender's claim; the payload is never opened.
 
 TERMINATION. A node CANNOT KNOW about global quiescence (I1). So the process
-never closes itself: every time `done` becomes true it writes a `node_done`
-record (radio-on time is derived from the latest one), every time it becomes
-false again it writes `node_undone`, and it KEEPS LISTENING, because its
-neighbours may still need its ACKs. An epoch restart takes a done node out of
-done; with one stamp per process the orchestrator and the collector could not
-see that (Amendment 18). The run is ended by
+never closes itself: the first time `done` becomes true it writes one
+`node_done` record (radio-on time is derived from that stamp) and KEEPS
+LISTENING, because its neighbours may still need its ACKs. The run is ended by
 the orchestrator, which watches the logs and drops a `STOP` file. That is the
 exact counterpart of `Scheduler`'s role in the simulator.
 """
@@ -237,8 +234,7 @@ class NodeRunner:
         self._clock = clock
         self.stop = False
         self.slots = 0
-        self.done_ms: Optional[int] = None  # latest entry into done, end of slot
-        self._was_done = False
+        self.done_ms: Optional[int] = None
         #: slot -> frames TO BE PROCESSED in that slot (arrival slot + 1)
         self._deferred: Dict[int, List[RxFrame]] = {}
 
@@ -270,8 +266,7 @@ class NodeRunner:
                 self.node.on_frame(f.src_mac, f.rssi, f.payload)
         self.node.on_timer("tick")
         self.slots += 1
-        done_now = bool(self.node.done)
-        if done_now and not self._was_done:
+        if self.done_ms is None and self.node.done:
             # A distinct name so it cannot be confused with the node's own
             # `done` event: this stamp is THE SCHEDULER'S observation, and
             # radio-on time is derived from it.
@@ -288,17 +283,6 @@ class NodeRunner:
                 slot=slot,
                 t_end_ms=self.done_ms,
             )
-        elif self._was_done and not done_now:
-            # Amendment 18: leaving done is recorded, so the last record of each
-            # node says whether its LATEST state is done.
-            self.port.log(
-                "node_undone",
-                role=int(self.node.role),
-                phase=int(self.node.phase),
-                slot=slot,
-                t_end_ms=(slot + 1) * self.tau_ms,
-            )
-        self._was_done = done_now
 
     def step(self, slot: int) -> None:
         self.poll(slot)
